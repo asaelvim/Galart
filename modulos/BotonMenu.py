@@ -1,7 +1,7 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QPushButton
 from PySide6.QtGui import QColor, QFont
-from PaletaColores import *
+from modulos.PaletaColores import *
 
 class BotonMenu(QPushButton):
     def __init__(self, text: str, active: bool = False):

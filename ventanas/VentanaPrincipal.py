@@ -2,10 +2,10 @@ from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame 
 
-from Fondo import Fondo
-from Carta import Carta
-from PaletaColores import *
-from ItemMenu import ItemMenu
+from modulos.Fondo import Fondo
+from modulos.Carta import Carta
+from modulos.PaletaColores import *
+from modulos.ItemMenu import ItemMenu
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self):

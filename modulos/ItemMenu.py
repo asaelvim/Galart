@@ -1,7 +1,7 @@
 from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import QHBoxLayout, QFrame, QWidget
-from PaletaColores import *
-from BotonMenu import BotonMenu
+from modulos.PaletaColores import *
+from modulos.BotonMenu import BotonMenu
 
 class ItemMenu(QWidget):
     def __init__(self, text: str, selected: bool = False):

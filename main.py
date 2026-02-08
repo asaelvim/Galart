@@ -1,6 +1,6 @@
 import sys
 from PySide6.QtWidgets import QApplication
-from VentanaPrincipal import VentanaPrincipal
+from ventanas.VentanaPrincipal import VentanaPrincipal
 
 FONDO_A = "#F7F4EF"
 FONDO_B = "#F2ECE4"

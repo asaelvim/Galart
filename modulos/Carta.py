@@ -1,6 +1,6 @@
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QFrame, QGraphicsDropShadowEffect
-from PaletaColores import *
+from modulos.PaletaColores import *
 
 class Carta(QFrame):
     def __init__(self):

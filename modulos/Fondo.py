@@ -2,7 +2,7 @@ import random
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPainter, QLinearGradient, QPixmap
 from PySide6.QtWidgets import QWidget
-from PaletaColores import *
+from modulos.PaletaColores import *
 
 class Fondo(QWidget):
     def __init__(self):
