@@ -6,10 +6,21 @@ from modulos.Fondo import Fondo
 from modulos.Carta import Carta
 from modulos.PaletaColores import *
 from modulos.ItemMenu import ItemMenu
+from ventanas.Clientes import ClientesWindow
 
 class VentanaPrincipal(QMainWindow):
-    def __init__(self):
+    def __init__(self, conexion):
         super().__init__()
+
+        # 🔥 Guardar conexión primero
+        self.conexion = conexion
+        self.ventana_clientes = None
+
+        # ✅ Ahora sí puedes usarla
+
+        cursor = self.conexion.cursor()
+        cursor.execute("SELECT DB_NAME()")
+        print("Conectado a:", cursor.fetchone()[0])
         self.setWindowTitle("Galería de Arte")
         self.setFixedSize(QSize(590, 829))
 
@@ -75,6 +86,8 @@ class VentanaPrincipal(QMainWindow):
             self.menu_items.append(it)
             content.addWidget(it)
             content.addSpacing(ESPACIADO_BOTON)
+            if t == "Gestión de Clientes":
+                it.button.clicked.connect(self.abrir_clientes)
 
         content.addStretch(1)
 
@@ -95,6 +108,29 @@ class VentanaPrincipal(QMainWindow):
             }}
         """)
 
+        def abrir_clientes(self):
+            self.hide()
+            self.ventana_clientes = ClientesWindow()
+            self.ventana_clientes.show()
+
+            if self.ventana_clientes is None:
+                self.ventana_clientes = ClientesWindow()
+    
+            self.ventana_clientes.show()
+            self.ventana_clientes.raise_()
+            self.ventana_clientes.activateWindow()
+
         btn_exit.clicked.connect(QApplication.instance().quit)
 
         content.addWidget(btn_exit, alignment=Qt.AlignHCenter)
+    # 👇 ESTE VA AL MISMO NIVEL QUE __init__
+    def abrir_clientes(self):
+        if self.ventana_clientes is None:
+            self.ventana_clientes = ClientesWindow()
+
+        self.hide()
+        self.ventana_clientes.show()
+        self.ventana_clientes.raise_()
+        self.ventana_clientes.activateWindow()
+
+
