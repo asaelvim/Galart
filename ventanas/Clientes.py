@@ -1,21 +1,22 @@
 """
 Pantalla: Gestión de Clientes (Paleta Opción A - Minimal Luxe)
-UI en PySide6 + tabla conectada a BD vía conexion.py
+UI en PySide6 + tabla conectada a BD vía config/conexion.py (obtener_conexion)
+
+Incluye:
+- CRUD
+- Buscar por nombre
+- Buscar por ID
+- Al dar click en una fila de la tabla: abre ventana de detalle (placeholder)
 
 Requisitos:
   pip install PySide6
 
 Estructura esperada:
   - main_clientes.py   (este archivo)
-  - conexion.py        (tu conexión a BD)
+  - config/conexion.py (tu conexión a BD)
 
-conexion.py debe exponer UNA de estas opciones:
-  A) def get_connection():  -> retorna una conexión DB-API (conn.cursor(), conn.commit())
-  B) def conectar():        -> igual
-  C) una variable conn / CONN (objeto conexión ya creado)
-
-Tabla esperada en BD: clientes
-  columnas: id (PK), nombre, correo, telefono
+Tabla esperada en BD: Clientes
+  columnas: id_cliente (PK), nombre, correo, telefono
 
 Ejecuta:
   python main_clientes.py
@@ -25,13 +26,15 @@ from __future__ import annotations
 
 import sys
 from contextlib import contextmanager
-from typing import Any, Iterable, List, Optional, Sequence, Tuple
+from typing import List, Optional, Tuple
+
 from config.conexion import obtener_conexion
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -43,8 +46,8 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
-    QHeaderView
 )
+
 
 # =========================
 # Paleta Opción A (Minimal Luxe)
@@ -62,6 +65,7 @@ BTN_BG = "#F6F1EA"
 BTN_BORDER = "#DED6CC"
 BTN_TEXT = "#2A2A2A"
 
+
 @contextmanager
 def db():
     conn = obtener_conexion()
@@ -70,13 +74,14 @@ def db():
     try:
         yield conn
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def _exec(cur, sql, params=()):
-    """
-    Ejecuta SQL usando placeholders '?' (compatibles con pyodbc).
-    """
+    """Ejecuta SQL usando placeholders '?' (compatibles con pyodbc)."""
     cur.execute(sql, params)
 
 
@@ -86,11 +91,27 @@ class ClientesRepo:
     def fetch_all(self) -> List[Tuple[int, str, str, str]]:
         with db() as conn:
             cur = conn.cursor()
-            _exec(cur, f"SELECT id_cliente, nombre, correo, telefono FROM Clientes ORDER BY id_cliente")
+            _exec(
+                cur,
+                "SELECT id_cliente, nombre, correo, telefono "
+                "FROM Clientes ORDER BY id_cliente"
+            )
             rows = cur.fetchall()
             return [(int(r[0]), str(r[1]), str(r[2]), str(r[3])) for r in rows]
 
-    def search_by_name(self, nombre: str):
+    def fetch_by_id(self, cliente_id: int) -> List[Tuple[int, str, str, str]]:
+        with db() as conn:
+            cur = conn.cursor()
+            _exec(
+                cur,
+                "SELECT id_cliente, nombre, correo, telefono "
+                "FROM Clientes WHERE id_cliente = ?",
+                (cliente_id,),
+            )
+            rows = cur.fetchall()
+            return [(int(r[0]), str(r[1]), str(r[2]), str(r[3])) for r in rows]
+
+    def search_by_name(self, nombre: str) -> List[Tuple[int, str, str, str]]:
         with db() as conn:
             cur = conn.cursor()
             like = f"%{nombre}%"
@@ -103,18 +124,17 @@ class ClientesRepo:
             rows = cur.fetchall()
             return [(int(r[0]), str(r[1]), str(r[2]), str(r[3])) for r in rows]
 
-
     def insert(self, nombre: str, correo: str, telefono: str) -> None:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
-                f"INSERT INTO {self.TABLE} (nombre, correo, telefono) VALUES (?, ?, ?)",
+                "INSERT INTO Clientes (nombre, correo, telefono) VALUES (?, ?, ?)",
                 (nombre, correo, telefono),
             )
             conn.commit()
 
-    def update(self, cliente_id, nombre, correo, telefono):
+    def update(self, cliente_id: int, nombre: str, correo: str, telefono: str) -> None:
         with db() as conn:
             cur = conn.cursor()
             _exec(
@@ -126,28 +146,88 @@ class ClientesRepo:
             )
             conn.commit()
 
-    def delete(self, cliente_id):
+    def delete(self, cliente_id: int) -> None:
         with db() as conn:
             cur = conn.cursor()
-            _exec(
-                cur,
-                "DELETE FROM Clientes WHERE id_cliente = ?",
-                (cliente_id,),
-            )
+            _exec(cur, "DELETE FROM Clientes WHERE id_cliente = ?", (cliente_id,))
             conn.commit()
 
 
 # =========================
-# UI
+# Ventana detalle (PLACEHOLDER)
+# (Luego tú me pides el código real. Aquí solo existe para que el código de Clientes ya quede terminado)
+# =========================
+class ClienteDetalleDialog(QDialog):
+    def __init__(self, cliente_id: int, nombre: str, correo: str, telefono: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Cliente ID {cliente_id}")
+        self.setFixedSize(360, 240)
+
+        root = QWidget()
+        self.setLayout(QVBoxLayout())
+        self.layout().setContentsMargins(18, 18, 18, 18)
+        self.layout().setSpacing(12)
+
+        title = QLabel(f"Cliente ID {cliente_id}")
+        title.setAlignment(Qt.AlignHCenter)
+        title.setFont(QFont("Segoe UI", 12))
+        self.layout().addWidget(title)
+
+        info = QLabel(
+            f"ID: {cliente_id}\n\n"
+            f"Nombre: {nombre}\n"
+            f"Correo: {correo}\n"
+            f"Teléfono: {telefono}"
+        )
+        info.setAlignment(Qt.AlignHCenter)
+        self.layout().addWidget(info)
+
+        btn = QPushButton("Cerrar")
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.clicked.connect(self.accept)
+        btn.setFixedHeight(34)
+        btn.setObjectName("Btn")
+        self.layout().addWidget(btn, alignment=Qt.AlignHCenter)
+
+        # mismo estilo
+        self.setStyleSheet(f"""
+        QDialog {{
+            background: {BG};
+            color: {TEXT};
+            font-family: "Segoe UI";
+            font-size: 10pt;
+        }}
+        QPushButton#Btn {{
+            background: {BTN_BG};
+            color: {BTN_TEXT};
+            border: 1px solid {BTN_BORDER};
+            border-radius: 9px;
+            padding: 6px 16px;
+        }}
+        QPushButton#Btn:hover {{
+            border: 1px solid {GOLD};
+            background: {BG};
+        }}
+        QPushButton#Btn:pressed {{
+            background: #EFE7DD;
+        }}
+        """)
+
+
+# =========================
+# UI Principal
 # =========================
 class ClientesVentana(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Gestión de Clientes")
-        self.setMinimumSize(900, 520)
+        self.setMinimumSize(900, 560)
 
         self.repo = ClientesRepo()
         self.current_id: Optional[int] = None
+
+        # Para evitar abrir 2 veces con selección programática
+        self._block_open_detail = False
 
         root = QWidget()
         root.setObjectName("Root")
@@ -196,7 +276,7 @@ class ClientesVentana(QMainWindow):
         row2.addStretch(1)
         card_layout.addLayout(row2)
 
-        # === Fila 3: búsqueda ===
+        # === Fila 3: búsqueda por nombre ===
         row3 = QHBoxLayout()
         row3.setSpacing(12)
 
@@ -219,6 +299,27 @@ class ClientesVentana(QMainWindow):
 
         card_layout.addLayout(row3)
 
+        # === Fila 4: búsqueda por ID ===
+        row4 = QHBoxLayout()
+        row4.setSpacing(12)
+
+        lblBuscarID = QLabel("Buscar por ID:")
+        lblBuscarID.setObjectName("MutedLabel")
+
+        self.txtBuscarID = QLineEdit()
+        self.txtBuscarID.setObjectName("SearchBox")
+        self.txtBuscarID.setFixedWidth(160)
+
+        self.btnBuscarID = self._button("Buscar ID", self.on_buscar_id)
+
+        row4.addStretch(1)
+        row4.addWidget(lblBuscarID)
+        row4.addWidget(self.txtBuscarID)
+        row4.addWidget(self.btnBuscarID)
+        row4.addStretch(1)
+
+        card_layout.addLayout(row4)
+
         # === Tabla (contenedor con borde redondeado) ===
         table_frame = QFrame()
         table_frame.setObjectName("TableFrame")
@@ -235,7 +336,14 @@ class ClientesVentana(QMainWindow):
         self.table.setColumnWidth(1, 220)
         self.table.setColumnWidth(2, 320)
         self.table.setColumnWidth(3, 140)
+
+        # IMPORTANTE:
+        # - itemSelectionChanged solo llena el formulario
+        # - cellClicked abre la ventana detalle (cuando el usuario da click)
         self.table.itemSelectionChanged.connect(self.on_row_selected)
+        self.table.cellClicked.connect(self.on_table_clicked)
+
+        self.table.horizontalHeader().setStretchLastSection(True)
 
         tf.addWidget(self.table)
         card_layout.addWidget(table_frame)
@@ -249,8 +357,6 @@ class ClientesVentana(QMainWindow):
         card_layout.addLayout(row_bottom)
 
         main.addWidget(card)
-
-        self.table.horizontalHeader().setStretchLastSection(True)
 
         # Estilos (Minimal Luxe)
         self.setStyleSheet(self._stylesheet())
@@ -272,7 +378,6 @@ class ClientesVentana(QMainWindow):
         lay.addWidget(lbl)
         lay.addWidget(edit)
 
-        # Guardar referencia
         setattr(self, obj_name, edit)
         return lay
 
@@ -281,10 +386,7 @@ class ClientesVentana(QMainWindow):
         b.setObjectName("Btn")
         b.setCursor(Qt.PointingHandCursor)
         b.clicked.connect(handler)
-        if wide:
-            b.setFixedWidth(170)
-        else:
-            b.setFixedWidth(110)
+        b.setFixedWidth(170 if wide else 110)
         b.setFixedHeight(34)
         return b
 
@@ -345,12 +447,11 @@ class ClientesVentana(QMainWindow):
             selection-color: #FFFFFF;
         }}
         QTableWidget::item {{
-            color: #2A2A2A;
+            color: {TEXT};
         }}
         QTableWidget::item:selected {{
             color: #FFFFFF;
         }}
-
         QHeaderView::section {{
             background: {BTN_BG};
             border: 1px solid {BORDER};
@@ -366,9 +467,6 @@ class ClientesVentana(QMainWindow):
     def _show_error(self, title: str, msg: str) -> None:
         QMessageBox.critical(self, title, msg)
 
-    def _show_info(self, title: str, msg: str) -> None:
-        QMessageBox.information(self, title, msg)
-
     def clear_form(self) -> None:
         self.current_id = None
         self.txtNombre.clear()
@@ -376,7 +474,7 @@ class ClientesVentana(QMainWindow):
         self.txtTelefono.clear()
         self.table.clearSelection()
 
-    def _get_form_values(self) -> tuple[str, str, str]:
+    def _get_form_values(self) -> Tuple[str, str, str]:
         nombre = self.txtNombre.text().strip()
         correo = self.txtCorreo.text().strip()
         telefono = self.txtTelefono.text().strip()
@@ -419,7 +517,7 @@ class ClientesVentana(QMainWindow):
         items = self.table.selectedItems()
         if not items:
             return
-        # selectedItems regresa por celdas; tomamos la fila del primer item
+
         row = items[0].row()
         cid = int(self.table.item(row, 0).text())
         nombre = self.table.item(row, 1).text()
@@ -431,8 +529,28 @@ class ClientesVentana(QMainWindow):
         self.txtCorreo.setText(correo)
         self.txtTelefono.setText(telefono)
 
+    def on_table_clicked(self, row: int, col: int) -> None:
+        """
+        Abre la ventana detalle SOLO cuando el usuario hace click.
+        (No se abre cuando la selección cambia por código.)
+        """
+        if self._block_open_detail:
+            return
+
+        try:
+            cid = int(self.table.item(row, 0).text())
+            nombre = self.table.item(row, 1).text()
+            correo = self.table.item(row, 2).text()
+            telefono = self.table.item(row, 3).text()
+        except Exception:
+            return
+
+        dlg = ClienteDetalleDialog(cid, nombre, correo, telefono, parent=self)
+        dlg.exec()
+
     def on_mostrar_todos(self) -> None:
         self.txtBuscar.clear()
+        self.txtBuscarID.clear()
         self.load_all()
         self.clear_form()
 
@@ -443,9 +561,43 @@ class ClientesVentana(QMainWindow):
             return
         try:
             rows = self.repo.search_by_name(nombre)
+            self._block_open_detail = True
             self.populate_table(rows)
+            self._block_open_detail = False
             self.clear_form()
         except Exception as e:
+            self._block_open_detail = False
+            self._show_error("Error BD", str(e))
+
+    def on_buscar_id(self) -> None:
+        raw = self.txtBuscarID.text().strip()
+        if not raw:
+            self._show_error("Validación", "Escribe un ID para buscar.")
+            return
+
+        try:
+            cid = int(raw)
+        except ValueError:
+            self._show_error("Validación", "El ID debe ser numérico.")
+            return
+
+        try:
+            rows = self.repo.fetch_by_id(cid)
+            self._block_open_detail = True
+            self.populate_table(rows)
+            self._block_open_detail = False
+
+            if rows:
+                cid, nombre, correo, telefono = rows[0]
+                self.current_id = cid
+                self.txtNombre.setText(nombre)
+                self.txtCorreo.setText(correo)
+                self.txtTelefono.setText(telefono)
+            else:
+                self.clear_form()
+                QMessageBox.information(self, "Resultado", "No se encontró ningún cliente con ese ID.")
+        except Exception as e:
+            self._block_open_detail = False
             self._show_error("Error BD", str(e))
 
     def on_agregar(self) -> None:
@@ -505,4 +657,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
