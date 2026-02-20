@@ -140,7 +140,7 @@ class ClientesRepo:
 # =========================
 # UI
 # =========================
-class ClientesWindow(QMainWindow):
+class ClientesVentana(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Gestión de Clientes")
@@ -498,7 +498,7 @@ class ClientesWindow(QMainWindow):
 def main() -> None:
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    w = ClientesWindow()
+    w = ClientesVentana()
     w.show()
     sys.exit(app.exec())
 

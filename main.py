@@ -7,10 +7,8 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
-    # 🔥 Crear conexión a SQL Server
     conexion = obtener_conexion()
 
-    # Pasarla a la ventana principal
     w = VentanaPrincipal(conexion)
     w.show()
 
