@@ -280,9 +280,9 @@ class ProveedoresWindow(QMainWindow):
         tf = QVBoxLayout(table_frame)
         tf.setContentsMargins(12, 12, 12, 12)
 
-        self.table = QTableWidget(0, 4)
+        self.table = QTableWidget(0, 5)
         self.table.setObjectName("Table")
-        self.table.setHorizontalHeaderLabels(["ID", "Nombre", "Teléfono", "Correo"])
+        self.table.setHorizontalHeaderLabels(["ID", "Nombre", "Teléfono", "Correo", "Dirección"])
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
@@ -291,6 +291,8 @@ class ProveedoresWindow(QMainWindow):
         self.table.setColumnWidth(1, 320)
         self.table.setColumnWidth(2, 220)
         self.table.setColumnWidth(3, 260)
+        self.table.setColumnWidth(4, 200)
+        self.table.horizontalHeader().setStretchLastSection(True)
 
         self.table.itemSelectionChanged.connect(self.on_row_selected)
 
@@ -473,14 +475,16 @@ class ProveedoresWindow(QMainWindow):
             it_nom = QTableWidgetItem(nombre)
             it_tel = QTableWidgetItem(telefono)
             it_cor = QTableWidgetItem(correo)
+            it_dir = QTableWidgetItem(direccion)
 
-            for it in (it_id, it_nom, it_tel, it_cor):
+            for it in (it_id, it_nom, it_tel, it_cor, it_dir):
                 it.setFlags(it.flags() & ~Qt.ItemIsEditable)
 
             self.table.setItem(r, 0, it_id)
             self.table.setItem(r, 1, it_nom)
             self.table.setItem(r, 2, it_tel)
             self.table.setItem(r, 3, it_cor)
+            self.table.setItem(r, 4, it_dir)
 
     def refresh_id_combo(self, rows: List[Tuple[int, str, str, str, str]]) -> None:
         self.cboMostrarID.blockSignals(True)
