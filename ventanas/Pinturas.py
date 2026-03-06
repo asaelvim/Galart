@@ -64,15 +64,17 @@ def _exec(cur, sql, params=()):
 class PinturasRepo:
     TABLE = "Pinturas"
 
-    def fetch_all(self) -> List[Tuple[int, str, float, int, str]]:
+    def fetch_all(self) -> List[Tuple[int, str, float, int, str, Optional[int], str]]:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
                 "SELECT p.id_pintura, p.titulo, p.precio, p.id_artista, "
-                "ISNULL(a.nombre, '') as artista_nombre "
+                "ISNULL(a.nombre, '') as artista_nombre, "
+                "p.id_tecnica, ISNULL(t.nombre, '') as tecnica_nombre "
                 "FROM Pinturas p "
                 "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
+                "LEFT JOIN Tecnicas t ON p.id_tecnica = t.id_tecnica "
                 "ORDER BY p.id_pintura",
             )
             rows = cur.fetchall()
@@ -83,18 +85,22 @@ class PinturasRepo:
                 precio = float(r[2]) if r[2] is not None else 0.0
                 id_artista = int(r[3]) if r[3] is not None else 0
                 artista_nombre = str(r[4]) if r[4] is not None else ""
-                result.append((pid, titulo, precio, id_artista, artista_nombre))
+                id_tecnica = int(r[5]) if r[5] is not None else None
+                tecnica_nombre = str(r[6]) if r[6] is not None else ""
+                result.append((pid, titulo, precio, id_artista, artista_nombre, id_tecnica, tecnica_nombre))
             return result
 
-    def fetch_by_id(self, pintura_id: int) -> List[Tuple[int, str, float, int, str]]:
+    def fetch_by_id(self, pintura_id: int) -> List[Tuple[int, str, float, int, str, Optional[int], str]]:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
                 "SELECT p.id_pintura, p.titulo, p.precio, p.id_artista, "
-                "ISNULL(a.nombre, '') as artista_nombre "
+                "ISNULL(a.nombre, '') as artista_nombre, "
+                "p.id_tecnica, ISNULL(t.nombre, '') as tecnica_nombre "
                 "FROM Pinturas p "
                 "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
+                "LEFT JOIN Tecnicas t ON p.id_tecnica = t.id_tecnica "
                 "WHERE p.id_pintura = ?",
                 (pintura_id,),
             )
@@ -106,19 +112,23 @@ class PinturasRepo:
                 precio = float(r[2]) if r[2] is not None else 0.0
                 id_artista = int(r[3]) if r[3] is not None else 0
                 artista_nombre = str(r[4]) if r[4] is not None else ""
-                result.append((pid, titulo, precio, id_artista, artista_nombre))
+                id_tecnica = int(r[5]) if r[5] is not None else None
+                tecnica_nombre = str(r[6]) if r[6] is not None else ""
+                result.append((pid, titulo, precio, id_artista, artista_nombre, id_tecnica, tecnica_nombre))
             return result
 
-    def search_by_title(self, titulo: str) -> List[Tuple[int, str, float, int, str]]:
+    def search_by_title(self, titulo: str) -> List[Tuple[int, str, float, int, str, Optional[int], str]]:
         with db() as conn:
             cur = conn.cursor()
             like = f"%{titulo}%"
             _exec(
                 cur,
                 "SELECT p.id_pintura, p.titulo, p.precio, p.id_artista, "
-                "ISNULL(a.nombre, '') as artista_nombre "
+                "ISNULL(a.nombre, '') as artista_nombre, "
+                "p.id_tecnica, ISNULL(t.nombre, '') as tecnica_nombre "
                 "FROM Pinturas p "
                 "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
+                "LEFT JOIN Tecnicas t ON p.id_tecnica = t.id_tecnica "
                 "WHERE p.titulo LIKE ? ORDER BY p.id_pintura",
                 (like,),
             )
@@ -130,27 +140,29 @@ class PinturasRepo:
                 precio = float(r[2]) if r[2] is not None else 0.0
                 id_artista = int(r[3]) if r[3] is not None else 0
                 artista_nombre = str(r[4]) if r[4] is not None else ""
-                result.append((pid, titulo_val, precio, id_artista, artista_nombre))
+                id_tecnica = int(r[5]) if r[5] is not None else None
+                tecnica_nombre = str(r[6]) if r[6] is not None else ""
+                result.append((pid, titulo_val, precio, id_artista, artista_nombre, id_tecnica, tecnica_nombre))
             return result
 
-    def insert(self, titulo: str, precio: float, id_artista: int) -> None:
+    def insert(self, titulo: str, precio: float, id_artista: int, id_tecnica: Optional[int] = None) -> None:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
-                "INSERT INTO Pinturas (titulo, precio, id_artista) VALUES (?, ?, ?)",
-                (titulo, precio, id_artista),
+                "INSERT INTO Pinturas (titulo, precio, id_artista, id_tecnica) VALUES (?, ?, ?, ?)",
+                (titulo, precio, id_artista, id_tecnica),
             )
             conn.commit()
 
-    def update(self, pintura_id: int, titulo: str, precio: float, id_artista: int) -> None:
+    def update(self, pintura_id: int, titulo: str, precio: float, id_artista: int, id_tecnica: Optional[int] = None) -> None:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
-                "UPDATE Pinturas SET titulo = ?, precio = ?, id_artista = ? "
+                "UPDATE Pinturas SET titulo = ?, precio = ?, id_artista = ?, id_tecnica = ? "
                 "WHERE id_pintura = ?",
-                (titulo, precio, id_artista, pintura_id),
+                (titulo, precio, id_artista, id_tecnica, pintura_id),
             )
             conn.commit()
 
@@ -243,6 +255,23 @@ class PinturasVentana(QMainWindow):
         row_artista.addStretch(1)
         card_layout.addLayout(row_artista)
 
+        # === Fila Técnica ===
+        row_tecnica = QHBoxLayout()
+        row_tecnica.setSpacing(12)
+        row_tecnica.addStretch(1)
+        lbl_tecnica = QLabel("Técnica:")
+        lbl_tecnica.setObjectName("MutedLabel")
+        self.cboTecnica = QComboBox()
+        self.cboTecnica.setObjectName("Combo")
+        self.cboTecnica.setFixedWidth(460)
+        row_tecnica.addWidget(lbl_tecnica)
+        row_tecnica.addWidget(self.cboTecnica)
+        spacer_tecnica = QWidget()
+        spacer_tecnica.setFixedWidth(110)
+        row_tecnica.addWidget(spacer_tecnica)
+        row_tecnica.addStretch(1)
+        card_layout.addLayout(row_tecnica)
+
         # === Fila Buscar por titulo ===
         row_buscar = QHBoxLayout()
         row_buscar.setSpacing(12)
@@ -304,16 +333,17 @@ class PinturasVentana(QMainWindow):
         tf = QVBoxLayout(table_frame)
         tf.setContentsMargins(12, 12, 12, 12)
 
-        self.table = QTableWidget(0, 4)
+        self.table = QTableWidget(0, 5)
         self.table.setObjectName("Table")
-        self.table.setHorizontalHeaderLabels(["ID", "Titulo", "Precio", "Artista"])
+        self.table.setHorizontalHeaderLabels(["ID", "Titulo", "Precio", "Artista", "Técnica"])
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
         self.table.setColumnWidth(0, 70)
-        self.table.setColumnWidth(1, 360)
-        self.table.setColumnWidth(2, 120)
-        self.table.setColumnWidth(3, 120)
+        self.table.setColumnWidth(1, 280)
+        self.table.setColumnWidth(2, 100)
+        self.table.setColumnWidth(3, 180)
+        self.table.setColumnWidth(4, 150)
         self.table.horizontalHeader().setStretchLastSection(True)
 
         self.table.itemSelectionChanged.connect(self.on_row_selected)
@@ -333,6 +363,7 @@ class PinturasVentana(QMainWindow):
         self.setStyleSheet(self._stylesheet())
 
         self._load_artistas_combo()
+        self._load_tecnicas_combo()
         self.load_all()
 
     def closeEvent(self, event):
@@ -365,6 +396,23 @@ class PinturasVentana(QMainWindow):
             pass
         self.cboArtista.setCurrentIndex(0)
         self.cboArtista.blockSignals(False)
+
+    def _load_tecnicas_combo(self) -> None:
+        """Carga la lista de técnicas en el ComboBox."""
+        self.cboTecnica.blockSignals(True)
+        self.cboTecnica.clear()
+        self.cboTecnica.addItem("-- Seleccionar técnica --", None)
+        try:
+            with db() as conn:
+                cur = conn.cursor()
+                _exec(cur, "SELECT id_tecnica, nombre FROM Tecnicas ORDER BY nombre")
+                rows = cur.fetchall()
+                for r in rows:
+                    self.cboTecnica.addItem(str(r[1]), int(r[0]))
+        except Exception:
+            pass
+        self.cboTecnica.setCurrentIndex(0)
+        self.cboTecnica.blockSignals(False)
 
     def _stylesheet(self) -> str:
         return f"""
@@ -463,13 +511,15 @@ class PinturasVentana(QMainWindow):
         self.txtTitulo.clear()
         self.txtPrecio.clear()
         self.cboArtista.setCurrentIndex(0)
+        self.cboTecnica.setCurrentIndex(0)
         self.table.clearSelection()
 
-    def _get_form_values(self) -> Tuple[str, str, Optional[int]]:
+    def _get_form_values(self) -> Tuple[str, str, Optional[int], Optional[int]]:
         titulo = self.txtTitulo.text().strip()
         precio = self.txtPrecio.text().strip()
         artista_id = self.cboArtista.currentData()
-        return titulo, precio, artista_id
+        tecnica_id = self.cboTecnica.currentData()
+        return titulo, precio, artista_id, tecnica_id
 
     def load_all(self) -> None:
         try:
@@ -478,21 +528,23 @@ class PinturasVentana(QMainWindow):
         except Exception as e:
             self._show_error("Error BD", str(e))
 
-    def populate_table(self, rows: List[Tuple[int, str, float, int, str]]) -> None:
+    def populate_table(self, rows: List[Tuple[int, str, float, int, str, Optional[int], str]]) -> None:
         self.table.setRowCount(0)
-        for r, (pid, titulo, precio, id_artista, artista_nombre) in enumerate(rows):
+        for r, (pid, titulo, precio, id_artista, artista_nombre, id_tecnica, tecnica_nombre) in enumerate(rows):
             self.table.insertRow(r)
             it_id = QTableWidgetItem(str(pid))
             it_id.setTextAlignment(Qt.AlignVCenter | Qt.AlignLeft)
             it_titulo = QTableWidgetItem(titulo)
             it_precio = QTableWidgetItem(f"{precio:.2f}")
             it_artista = QTableWidgetItem(artista_nombre)
-            for it in (it_id, it_titulo, it_precio, it_artista):
+            it_tecnica = QTableWidgetItem(tecnica_nombre)
+            for it in (it_id, it_titulo, it_precio, it_artista, it_tecnica):
                 it.setFlags(it.flags() & ~Qt.ItemIsEditable)
             self.table.setItem(r, 0, it_id)
             self.table.setItem(r, 1, it_titulo)
             self.table.setItem(r, 2, it_precio)
             self.table.setItem(r, 3, it_artista)
+            self.table.setItem(r, 4, it_tecnica)
 
     def on_row_selected(self) -> None:
         items = self.table.selectedItems()
@@ -503,13 +555,18 @@ class PinturasVentana(QMainWindow):
         try:
             rows = self.repo.fetch_by_id(pid)
             if rows:
-                _, titulo, precio, id_artista, _ = rows[0]
+                _, titulo, precio, id_artista, _, id_tecnica, _ = rows[0]
                 self.current_id = pid
                 self.txtTitulo.setText(titulo)
                 self.txtPrecio.setText(f"{precio:.2f}")
                 index = self.cboArtista.findData(id_artista)
                 if index >= 0:
                     self.cboArtista.setCurrentIndex(index)
+                index_t = self.cboTecnica.findData(id_tecnica)
+                if index_t >= 0:
+                    self.cboTecnica.setCurrentIndex(index_t)
+                else:
+                    self.cboTecnica.setCurrentIndex(0)
         except Exception:
             self.current_id = pid
             self.txtTitulo.setText(self.table.item(row, 1).text())
@@ -518,6 +575,12 @@ class PinturasVentana(QMainWindow):
             idx = self.cboArtista.findText(artista_text)
             if idx >= 0:
                 self.cboArtista.setCurrentIndex(idx)
+            tecnica_text = self.table.item(row, 4).text()
+            idx_t = self.cboTecnica.findText(tecnica_text)
+            if idx_t >= 0:
+                self.cboTecnica.setCurrentIndex(idx_t)
+            else:
+                self.cboTecnica.setCurrentIndex(0)
 
     def on_mostrar_todos(self) -> None:
         self.txtBuscar.clear()
@@ -550,7 +613,7 @@ class PinturasVentana(QMainWindow):
         try:
             rows = self.repo.fetch_by_id(pid)
             if rows:
-                _, titulo, precio, id_artista, _ = rows[0]
+                _, titulo, precio, id_artista, _, id_tecnica, _ = rows[0]
                 self.populate_table(rows)
                 self.current_id = pid
                 self.txtTitulo.setText(titulo)
@@ -558,6 +621,11 @@ class PinturasVentana(QMainWindow):
                 index = self.cboArtista.findData(id_artista)
                 if index >= 0:
                     self.cboArtista.setCurrentIndex(index)
+                index_t = self.cboTecnica.findData(id_tecnica)
+                if index_t >= 0:
+                    self.cboTecnica.setCurrentIndex(index_t)
+                else:
+                    self.cboTecnica.setCurrentIndex(0)
             else:
                 self.populate_table([])
                 self.clear_form()
@@ -566,7 +634,7 @@ class PinturasVentana(QMainWindow):
             self._show_error("Error BD", str(e))
 
     def on_agregar(self) -> None:
-        titulo, precio_str, artista_id = self._get_form_values()
+        titulo, precio_str, artista_id, tecnica_id = self._get_form_values()
         if not titulo:
             self._show_error("Validación", "El campo Titulo es obligatorio.")
             return
@@ -579,7 +647,7 @@ class PinturasVentana(QMainWindow):
             self._show_error("Validación", "Selecciona un artista.")
             return
         try:
-            self.repo.insert(titulo, precio, artista_id)
+            self.repo.insert(titulo, precio, artista_id, tecnica_id)
             self.load_all()
             self.clear_form()
         except Exception as e:
@@ -589,7 +657,7 @@ class PinturasVentana(QMainWindow):
         if self.current_id is None:
             self._show_error("Editar", "Selecciona una pintura de la tabla.")
             return
-        titulo, precio_str, artista_id = self._get_form_values()
+        titulo, precio_str, artista_id, tecnica_id = self._get_form_values()
         if not titulo:
             self._show_error("Validación", "El campo Titulo es obligatorio.")
             return
@@ -602,7 +670,7 @@ class PinturasVentana(QMainWindow):
             self._show_error("Validación", "Selecciona un artista.")
             return
         try:
-            self.repo.update(self.current_id, titulo, precio, artista_id)
+            self.repo.update(self.current_id, titulo, precio, artista_id, tecnica_id)
             self.load_all()
             self.clear_form()
         except Exception as e:
