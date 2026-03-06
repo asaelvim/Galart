@@ -30,8 +30,8 @@ from typing import List, Optional, Tuple
 
 from config.conexion import obtener_conexion
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QRegularExpression
+from PySide6.QtGui import QFont, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -321,6 +321,18 @@ class ClientesVentana(QMainWindow):
         row4.addStretch(1)
 
         card_layout.addLayout(row4)
+
+        # === Validadores de campos ===
+        validator_letras = QRegularExpressionValidator(
+            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$")
+        )
+        validator_numeros = QRegularExpressionValidator(
+            QRegularExpression(r"^[0-9]+$")
+        )
+        self.txtNombre.setValidator(validator_letras)
+        self.txtTelefono.setValidator(validator_numeros)
+        self.txtBuscarID.setValidator(validator_numeros)
+        self.txtBuscar.setValidator(validator_letras)
 
         # === Tabla (contenedor con borde redondeado) ===
         table_frame = QFrame()
