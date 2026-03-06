@@ -221,7 +221,7 @@ class VendedoresVentana(QMainWindow):
         super().__init__()
         self.ventana_principal = ventana_principal
         self.setWindowTitle("Gestión de Vendedores")
-        self.setMinimumSize(980, 560)
+        self.setFixedSize(980, 660)
 
         self.repo = VendedoresRepo()
         self.current_id: Optional[int] = None
@@ -250,6 +250,7 @@ class VendedoresVentana(QMainWindow):
         # Inputs row
         row1 = QHBoxLayout()
         row1.setSpacing(18)
+        row1.addStretch(1)
         row1.addLayout(self._labeled_edit("Nombre:", "txtNombre", width=220))
         row1.addLayout(self._labeled_edit("Correo:", "txtCorreo", width=300))
         row1.addLayout(self._labeled_edit("Teléfono:", "txtTelefono", width=140))
@@ -264,6 +265,7 @@ class VendedoresVentana(QMainWindow):
         ch_layout.addWidget(self.chkActivo)
         ch_layout.addStretch(1)
         row1.addLayout(ch_layout)
+        row1.addStretch(1)
 
         card_layout.addLayout(row1)
 

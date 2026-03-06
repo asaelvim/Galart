@@ -163,7 +163,7 @@ class ProveedoresWindow(QMainWindow):
         super().__init__()
         self.ventana_principal = ventana_principal
         self.setWindowTitle("Gestión de proveedores")
-        self.setMinimumSize(940, 560)
+        self.setFixedSize(940, 660)
 
         self.repo = ProveedoresRepo()
         self.current_id: Optional[int] = None
@@ -193,17 +193,18 @@ class ProveedoresWindow(QMainWindow):
         # === Fila 1: inputs (Nombre / Teléfono / Correo) ===
         row1 = QHBoxLayout()
         row1.setSpacing(22)
-
+        row1.addStretch(1)
         row1.addLayout(self._labeled_edit("Nombre:", "txtNombre", width=220))
         row1.addLayout(self._labeled_edit("Teléfono:", "txtTelefono", width=280))
         row1.addLayout(self._labeled_edit("Correo:", "txtCorreo", width=220))
+        row1.addStretch(1)
 
         card_layout.addLayout(row1)
 
         # === Fila 2: Dirección + CRUD ===
         row2 = QHBoxLayout()
         row2.setSpacing(18)
-
+        row2.addStretch(1)
         row2.addLayout(self._labeled_edit("Dirección:", "txtDireccion", width=420))
 
         self.btnAgregar = self._button("Agregar", self.on_agregar, width=150)
@@ -213,6 +214,7 @@ class ProveedoresWindow(QMainWindow):
         row2.addWidget(self.btnAgregar)
         row2.addWidget(self.btnEditar)
         row2.addWidget(self.btnEliminar)
+        row2.addStretch(1)
 
         card_layout.addLayout(row2)
 

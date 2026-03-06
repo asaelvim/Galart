@@ -222,7 +222,7 @@ class ClientesVentana(QMainWindow):
         super().__init__()
         self.ventana_principal = ventana_principal
         self.setWindowTitle("Gestión de Clientes")
-        self.setMinimumSize(900, 560)
+        self.setFixedSize(900, 660)
 
         self.repo = ClientesRepo()
         self.current_id: Optional[int] = None
@@ -255,10 +255,11 @@ class ClientesVentana(QMainWindow):
         # === Fila 1: inputs ===
         row1 = QHBoxLayout()
         row1.setSpacing(18)
-
+        row1.addStretch(1)
         row1.addLayout(self._labeled_edit("Nombre:", "txtNombre", width=190))
         row1.addLayout(self._labeled_edit("Correo:", "txtCorreo", width=260))
         row1.addLayout(self._labeled_edit("Teléfono:", "txtTelefono", width=120))
+        row1.addStretch(1)
 
         card_layout.addLayout(row1)
 
