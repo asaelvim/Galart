@@ -159,8 +159,9 @@ class ProveedoresRepo:
 # UI
 # =========================
 class ProveedoresWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, ventana_principal):
         super().__init__()
+        self.ventana_principal = ventana_principal
         self.setWindowTitle("Gestión de proveedores")
         self.setMinimumSize(940, 560)
 
@@ -309,7 +310,10 @@ class ProveedoresWindow(QMainWindow):
 
         # Cargar datos
         self.load_all()
-
+    def closeEvent(self, event):
+        if self.ventana_principal is not None:
+            self.ventana_principal.show()
+        event.accept()
     # ---------- UI helpers ----------
     def _labeled_edit(self, label: str, obj_name: str, width: int) -> QHBoxLayout:
         lay = QHBoxLayout()

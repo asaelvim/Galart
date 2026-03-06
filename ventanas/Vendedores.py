@@ -1,27 +1,3 @@
-"""
-Pantalla: Gestión de Clientes (Paleta Opción A - Minimal Luxe)
-UI en PySide6 + tabla conectada a BD vía config/conexion.py (obtener_conexion)
-
-Incluye:
-- CRUD
-- Buscar por nombre
-- Buscar por ID
-- Al dar click en una fila de la tabla: abre ventana de detalle (placeholder)
-
-Requisitos:
-  pip install PySide6
-
-Estructura esperada:
-  - main_clientes.py   (este archivo)
-  - config/conexion.py (tu conexión a BD)
-
-Tabla esperada en BD: Clientes
-  columnas: id_cliente (PK), nombre, correo, telefono
-
-Ejecuta:
-  python main_clientes.py
-"""
-
 from __future__ import annotations
 
 import sys
@@ -34,6 +10,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -85,99 +62,122 @@ def _exec(cur, sql, params=()):
     cur.execute(sql, params)
 
 
-class ClientesRepo:
-    TABLE = "Clientes"
+class VendedoresRepo:
+    TABLE = "Vendedores"
 
-    def fetch_all(self) -> List[Tuple[int, str, str, str]]:
+    def fetch_all(self) -> List[Tuple[int, str, str, str, bool]]:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT id_cliente, nombre, correo, telefono "
-                "FROM Clientes ORDER BY id_cliente"
+                "SELECT id_vendedor, nombre, correo, telefono, activo "
+                "FROM Vendedores ORDER BY id_vendedor"
             )
             rows = cur.fetchall()
-            return [(int(r[0]), str(r[1]), str(r[2]), str(r[3])) for r in rows]
+            result = []
+            for r in rows:
+                vid = int(r[0])
+                nombre = str(r[1]) if r[1] is not None else ""
+                correo = str(r[2]) if r[2] is not None else ""
+                telefono = str(r[3]) if r[3] is not None else ""
+                activo = bool(r[4]) if r[4] is not None else False
+                result.append((vid, nombre, correo, telefono, activo))
+            return result
 
-    def fetch_by_id(self, cliente_id: int) -> List[Tuple[int, str, str, str]]:
+    def fetch_by_id(self, vendedor_id: int) -> List[Tuple[int, str, str, str, bool]]:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT id_cliente, nombre, correo, telefono "
-                "FROM Clientes WHERE id_cliente = ?",
-                (cliente_id,),
+                "SELECT id_vendedor, nombre, correo, telefono, activo "
+                "FROM Vendedores WHERE id_vendedor = ?",
+                (vendedor_id,),
             )
             rows = cur.fetchall()
-            return [(int(r[0]), str(r[1]), str(r[2]), str(r[3])) for r in rows]
+            result = []
+            for r in rows:
+                vid = int(r[0])
+                nombre = str(r[1]) if r[1] is not None else ""
+                correo = str(r[2]) if r[2] is not None else ""
+                telefono = str(r[3]) if r[3] is not None else ""
+                activo = bool(r[4]) if r[4] is not None else False
+                result.append((vid, nombre, correo, telefono, activo))
+            return result
 
-    def search_by_name(self, nombre: str) -> List[Tuple[int, str, str, str]]:
+    def search_by_name(self, nombre: str) -> List[Tuple[int, str, str, str, bool]]:
         with db() as conn:
             cur = conn.cursor()
             like = f"%{nombre}%"
             _exec(
                 cur,
-                "SELECT id_cliente, nombre, correo, telefono "
-                "FROM Clientes WHERE nombre LIKE ? ORDER BY id_cliente",
+                "SELECT id_vendedor, nombre, correo, telefono, activo "
+                "FROM Vendedores WHERE nombre LIKE ? ORDER BY id_vendedor",
                 (like,),
             )
             rows = cur.fetchall()
-            return [(int(r[0]), str(r[1]), str(r[2]), str(r[3])) for r in rows]
+            result = []
+            for r in rows:
+                vid = int(r[0])
+                nombre = str(r[1]) if r[1] is not None else ""
+                correo = str(r[2]) if r[2] is not None else ""
+                telefono = str(r[3]) if r[3] is not None else ""
+                activo = bool(r[4]) if r[4] is not None else False
+                result.append((vid, nombre, correo, telefono, activo))
+            return result
 
-    def insert(self, nombre: str, correo: str, telefono: str) -> None:
+    def insert(self, nombre: str, correo: str, telefono: str, activo: bool) -> None:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
-                "INSERT INTO Clientes (nombre, correo, telefono) VALUES (?, ?, ?)",
-                (nombre, correo, telefono),
+                "INSERT INTO Vendedores (nombre, correo, telefono, activo) VALUES (?, ?, ?, ?)",
+                (nombre, correo, telefono, int(activo)),
             )
             conn.commit()
 
-    def update(self, cliente_id: int, nombre: str, correo: str, telefono: str) -> None:
+    def update(self, vendedor_id: int, nombre: str, correo: str, telefono: str, activo: bool) -> None:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
-                "UPDATE Clientes "
-                "SET nombre = ?, correo = ?, telefono = ? "
-                "WHERE id_cliente = ?",
-                (nombre, correo, telefono, cliente_id),
+                "UPDATE Vendedores "
+                "SET nombre = ?, correo = ?, telefono = ?, activo = ? "
+                "WHERE id_vendedor = ?",
+                (nombre, correo, telefono, int(activo), vendedor_id),
             )
             conn.commit()
 
-    def delete(self, cliente_id: int) -> None:
+    def delete(self, vendedor_id: int) -> None:
         with db() as conn:
             cur = conn.cursor()
-            _exec(cur, "DELETE FROM Clientes WHERE id_cliente = ?", (cliente_id,))
+            _exec(cur, "DELETE FROM Vendedores WHERE id_vendedor = ?", (vendedor_id,))
             conn.commit()
 
 
 # =========================
 # Ventana detalle (PLACEHOLDER)
-# (Luego tú me pides el código real. Aquí solo existe para que el código de Clientes ya quede terminado)
 # =========================
-class ClienteDetalleDialog(QDialog):
-    def __init__(self, cliente_id: int, nombre: str, correo: str, telefono: str, parent=None):
+class VendedorDetalleDialog(QDialog):
+    def __init__(self, vendedor_id: int, nombre: str, correo: str, telefono: str, activo: bool, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"Cliente ID {cliente_id}")
-        self.setFixedSize(360, 240)
+        self.setWindowTitle(f"Vendedor ID {vendedor_id}")
+        self.setFixedSize(380, 260)
 
-        root = QWidget()
         self.setLayout(QVBoxLayout())
         self.layout().setContentsMargins(18, 18, 18, 18)
         self.layout().setSpacing(12)
 
-        title = QLabel(f"Cliente ID {cliente_id}")
+        title = QLabel(f"Vendedor ID {vendedor_id}")
         title.setAlignment(Qt.AlignHCenter)
         title.setFont(QFont("Segoe UI", 12))
         self.layout().addWidget(title)
 
         info = QLabel(
-            f"ID: {cliente_id}\n\n"
+            f"ID: {vendedor_id}\n\n"
             f"Nombre: {nombre}\n"
             f"Correo: {correo}\n"
-            f"Teléfono: {telefono}"
+            f"Teléfono: {telefono}\n"
+            f"Activo: {'Sí' if activo else 'No'}"
         )
         info.setAlignment(Qt.AlignHCenter)
         self.layout().addWidget(info)
@@ -189,7 +189,6 @@ class ClienteDetalleDialog(QDialog):
         btn.setObjectName("Btn")
         self.layout().addWidget(btn, alignment=Qt.AlignHCenter)
 
-        # mismo estilo
         self.setStyleSheet(f"""
         QDialog {{
             background: {BG};
@@ -215,19 +214,17 @@ class ClienteDetalleDialog(QDialog):
 
 
 # =========================
-# UI Principal
+# UI Principal para VENDEDORES
 # =========================
-class ClientesVentana(QMainWindow):
+class VendedoresVentana(QMainWindow):
     def __init__(self, ventana_principal=None):
         super().__init__()
         self.ventana_principal = ventana_principal
-        self.setWindowTitle("Gestión de Clientes")
-        self.setMinimumSize(900, 560)
+        self.setWindowTitle("Gestión de Vendedores")
+        self.setMinimumSize(980, 560)
 
-        self.repo = ClientesRepo()
+        self.repo = VendedoresRepo()
         self.current_id: Optional[int] = None
-
-        # Para evitar abrir 2 veces con selección programática
         self._block_open_detail = False
 
         root = QWidget()
@@ -238,118 +235,110 @@ class ClientesVentana(QMainWindow):
         main.setContentsMargins(18, 18, 18, 18)
         main.setSpacing(14)
 
-        # Card contenedora
         card = QFrame()
         card.setObjectName("Card")
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(18, 14, 18, 18)
         card_layout.setSpacing(12)
 
-        # Título
-        title = QLabel("Gestión de Clientes")
+        title = QLabel("Gestión de Vendedores")
         title.setAlignment(Qt.AlignHCenter)
         title.setFont(QFont("Segoe UI", 12))
         title.setObjectName("Title")
         card_layout.addWidget(title)
 
-        # === Fila 1: inputs ===
+        # Inputs row
         row1 = QHBoxLayout()
         row1.setSpacing(18)
+        row1.addLayout(self._labeled_edit("Nombre:", "txtNombre", width=220))
+        row1.addLayout(self._labeled_edit("Correo:", "txtCorreo", width=300))
+        row1.addLayout(self._labeled_edit("Teléfono:", "txtTelefono", width=140))
 
-        row1.addLayout(self._labeled_edit("Nombre:", "txtNombre", width=190))
-        row1.addLayout(self._labeled_edit("Correo:", "txtCorreo", width=260))
-        row1.addLayout(self._labeled_edit("Teléfono:", "txtTelefono", width=120))
+        # Activo checkbox
+        ch_layout = QHBoxLayout()
+        ch_layout.setSpacing(8)
+        lbl_act = QLabel("Activo:")
+        lbl_act.setObjectName("MutedLabel")
+        self.chkActivo = QCheckBox()
+        ch_layout.addWidget(lbl_act)
+        ch_layout.addWidget(self.chkActivo)
+        ch_layout.addStretch(1)
+        row1.addLayout(ch_layout)
 
         card_layout.addLayout(row1)
 
-        # === Fila 2: botones CRUD ===
+        # CRUD buttons
         row2 = QHBoxLayout()
         row2.addStretch(1)
-
         self.btnAgregar = self._button("Agregar", self.on_agregar)
         self.btnEditar = self._button("Editar", self.on_editar)
         self.btnEliminar = self._button("Eliminar", self.on_eliminar)
-
         row2.addWidget(self.btnAgregar)
         row2.addWidget(self.btnEditar)
         row2.addWidget(self.btnEliminar)
-
         row2.addStretch(1)
         card_layout.addLayout(row2)
 
-        # === Fila 3: búsqueda por nombre ===
+        # Search by name
         row3 = QHBoxLayout()
         row3.setSpacing(12)
-
         lblBuscar = QLabel("Buscar por nombre:")
         lblBuscar.setObjectName("MutedLabel")
-
         self.txtBuscar = QLineEdit()
         self.txtBuscar.setObjectName("SearchBox")
-        self.txtBuscar.setFixedWidth(260)
-
+        self.txtBuscar.setFixedWidth(280)
         self.btnBuscar = self._button("Buscar", self.on_buscar)
         self.btnMostrar = self._button("Mostrar Todos", self.on_mostrar_todos)
-
         row3.addStretch(1)
         row3.addWidget(lblBuscar)
         row3.addWidget(self.txtBuscar)
         row3.addWidget(self.btnBuscar)
         row3.addWidget(self.btnMostrar)
         row3.addStretch(1)
-
         card_layout.addLayout(row3)
 
-        # === Fila 4: búsqueda por ID ===
+        # Search by ID
         row4 = QHBoxLayout()
         row4.setSpacing(12)
-
         lblBuscarID = QLabel("Buscar por ID:")
         lblBuscarID.setObjectName("MutedLabel")
-
         self.txtBuscarID = QLineEdit()
         self.txtBuscarID.setObjectName("SearchBox")
         self.txtBuscarID.setFixedWidth(160)
-
         self.btnBuscarID = self._button("Buscar ID", self.on_buscar_id)
-
         row4.addStretch(1)
         row4.addWidget(lblBuscarID)
         row4.addWidget(self.txtBuscarID)
         row4.addWidget(self.btnBuscarID)
         row4.addStretch(1)
-
         card_layout.addLayout(row4)
 
-        # === Tabla (contenedor con borde redondeado) ===
+        # Table
         table_frame = QFrame()
         table_frame.setObjectName("TableFrame")
         tf = QVBoxLayout(table_frame)
         tf.setContentsMargins(12, 12, 12, 12)
 
-        self.table = QTableWidget(0, 4)
+        self.table = QTableWidget(0, 5)
         self.table.setObjectName("Table")
-        self.table.setHorizontalHeaderLabels(["ID", "Nombre", "Correo", "Teléfono"])
+        self.table.setHorizontalHeaderLabels(["ID", "Nombre", "Correo", "Teléfono", "Activo"])
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
         self.table.setColumnWidth(0, 70)
-        self.table.setColumnWidth(1, 220)
+        self.table.setColumnWidth(1, 260)
         self.table.setColumnWidth(2, 320)
         self.table.setColumnWidth(3, 140)
+        self.table.setColumnWidth(4, 70)
 
-        # IMPORTANTE:
-        # - itemSelectionChanged solo llena el formulario
-        # - cellClicked abre la ventana detalle (cuando el usuario da click)
         self.table.itemSelectionChanged.connect(self.on_row_selected)
         self.table.cellClicked.connect(self.on_table_clicked)
-
         self.table.horizontalHeader().setStretchLastSection(True)
 
         tf.addWidget(self.table)
         card_layout.addWidget(table_frame)
 
-        # === Botón Salir ===
+        # Bottom button
         row_bottom = QHBoxLayout()
         row_bottom.addStretch(1)
         self.btnSalir = self._button("Salir", self.close, wide=True)
@@ -358,12 +347,11 @@ class ClientesVentana(QMainWindow):
         card_layout.addLayout(row_bottom)
 
         main.addWidget(card)
-
-        # Estilos (Minimal Luxe)
         self.setStyleSheet(self._stylesheet())
 
-        # Cargar datos
+        # Load data
         self.load_all()
+
     def closeEvent(self, event):
         if self.ventana_principal is not None:
             self.ventana_principal.show()
@@ -372,17 +360,13 @@ class ClientesVentana(QMainWindow):
     def _labeled_edit(self, label: str, obj_name: str, width: int) -> QHBoxLayout:
         lay = QHBoxLayout()
         lay.setSpacing(8)
-
         lbl = QLabel(label)
         lbl.setObjectName("MutedLabel")
-
         edit = QLineEdit()
         edit.setObjectName(obj_name)
         edit.setFixedWidth(width)
-
         lay.addWidget(lbl)
         lay.addWidget(edit)
-
         setattr(self, obj_name, edit)
         return lay
 
@@ -466,9 +450,7 @@ class ClientesVentana(QMainWindow):
         }}
         """
 
-    # =========================
-    # Helpers UI
-    # =========================
+    # Helpers
     def _show_error(self, title: str, msg: str) -> None:
         QMessageBox.critical(self, title, msg)
 
@@ -477,17 +459,17 @@ class ClientesVentana(QMainWindow):
         self.txtNombre.clear()
         self.txtCorreo.clear()
         self.txtTelefono.clear()
+        self.chkActivo.setChecked(False)
         self.table.clearSelection()
 
-    def _get_form_values(self) -> Tuple[str, str, str]:
+    def _get_form_values(self) -> Tuple[str, str, str, bool]:
         nombre = self.txtNombre.text().strip()
         correo = self.txtCorreo.text().strip()
         telefono = self.txtTelefono.text().strip()
-        return nombre, correo, telefono
+        activo = bool(self.chkActivo.isChecked())
+        return nombre, correo, telefono, activo
 
-    # =========================
-    # Carga / Tabla
-    # =========================
+    # Load / populate
     def load_all(self) -> None:
         try:
             rows = self.repo.fetch_all()
@@ -495,61 +477,53 @@ class ClientesVentana(QMainWindow):
         except Exception as e:
             self._show_error("Error BD", str(e))
 
-    def populate_table(self, rows: List[Tuple[int, str, str, str]]) -> None:
+    def populate_table(self, rows: List[Tuple[int, str, str, str, bool]]) -> None:
         self.table.setRowCount(0)
-        for r, (cid, nombre, correo, telefono) in enumerate(rows):
+        for r, (vid, nombre, correo, telefono, activo) in enumerate(rows):
             self.table.insertRow(r)
-
-            it_id = QTableWidgetItem(str(cid))
+            it_id = QTableWidgetItem(str(vid))
             it_id.setTextAlignment(Qt.AlignVCenter | Qt.AlignLeft)
-
             it_nom = QTableWidgetItem(nombre)
             it_cor = QTableWidgetItem(correo)
             it_tel = QTableWidgetItem(telefono)
-
-            for it in (it_id, it_nom, it_cor, it_tel):
+            it_act = QTableWidgetItem("Sí" if activo else "No")
+            for it in (it_id, it_nom, it_cor, it_tel, it_act):
                 it.setFlags(it.flags() & ~Qt.ItemIsEditable)
-
             self.table.setItem(r, 0, it_id)
             self.table.setItem(r, 1, it_nom)
             self.table.setItem(r, 2, it_cor)
             self.table.setItem(r, 3, it_tel)
+            self.table.setItem(r, 4, it_act)
 
-    # =========================
-    # Eventos
-    # =========================
+    # Events
     def on_row_selected(self) -> None:
         items = self.table.selectedItems()
         if not items:
             return
-
         row = items[0].row()
-        cid = int(self.table.item(row, 0).text())
+        vid = int(self.table.item(row, 0).text())
         nombre = self.table.item(row, 1).text()
         correo = self.table.item(row, 2).text()
         telefono = self.table.item(row, 3).text()
-
-        self.current_id = cid
+        activo_text = self.table.item(row, 4).text()
+        activo = True if activo_text == "Sí" else False
+        self.current_id = vid
         self.txtNombre.setText(nombre)
         self.txtCorreo.setText(correo)
         self.txtTelefono.setText(telefono)
+        self.chkActivo.setChecked(activo)
 
     def on_table_clicked(self, row: int, col: int) -> None:
-        """
-        Abre la ventana detalle SOLO cuando el usuario hace click.
-        (No se abre cuando la selección cambia por código.)
-        """
         if self._block_open_detail:
             return
-
         try:
-            cid = int(self.table.item(row, 0).text())
+            vid = int(self.table.item(row, 0).text())
             nombre = self.table.item(row, 1).text()
             correo = self.table.item(row, 2).text()
             telefono = self.table.item(row, 3).text()
+            activo = True if self.table.item(row, 4).text() == "Sí" else False
         except Exception:
             return
-
 
     def on_mostrar_todos(self) -> None:
         self.txtBuscar.clear()
@@ -577,39 +551,37 @@ class ClientesVentana(QMainWindow):
         if not raw:
             self._show_error("Validación", "Escribe un ID para buscar.")
             return
-
         try:
-            cid = int(raw)
+            vid = int(raw)
         except ValueError:
             self._show_error("Validación", "El ID debe ser numérico.")
             return
-
         try:
-            rows = self.repo.fetch_by_id(cid)
+            rows = self.repo.fetch_by_id(vid)
             self._block_open_detail = True
             self.populate_table(rows)
             self._block_open_detail = False
-
             if rows:
-                cid, nombre, correo, telefono = rows[0]
-                self.current_id = cid
+                vid, nombre, correo, telefono, activo = rows[0]
+                self.current_id = vid
                 self.txtNombre.setText(nombre)
                 self.txtCorreo.setText(correo)
                 self.txtTelefono.setText(telefono)
+                self.chkActivo.setChecked(bool(activo))
             else:
                 self.clear_form()
-                QMessageBox.information(self, "Resultado", "No se encontró ningún cliente con ese ID.")
+                QMessageBox.information(self, "Resultado", "No se encontró ningún vendedor con ese ID.")
         except Exception as e:
             self._block_open_detail = False
             self._show_error("Error BD", str(e))
 
     def on_agregar(self) -> None:
-        nombre, correo, telefono = self._get_form_values()
+        nombre, correo, telefono, activo = self._get_form_values()
         if not nombre or not correo or not telefono:
             self._show_error("Validación", "Completa Nombre, Correo y Teléfono.")
             return
         try:
-            self.repo.insert(nombre, correo, telefono)
+            self.repo.insert(nombre, correo, telefono, activo)
             self.load_all()
             self.clear_form()
         except Exception as e:
@@ -617,14 +589,14 @@ class ClientesVentana(QMainWindow):
 
     def on_editar(self) -> None:
         if self.current_id is None:
-            self._show_error("Editar", "Selecciona un cliente de la tabla.")
+            self._show_error("Editar", "Selecciona un vendedor de la tabla.")
             return
-        nombre, correo, telefono = self._get_form_values()
+        nombre, correo, telefono, activo = self._get_form_values()
         if not nombre or not correo or not telefono:
             self._show_error("Validación", "Completa Nombre, Correo y Teléfono.")
             return
         try:
-            self.repo.update(self.current_id, nombre, correo, telefono)
+            self.repo.update(self.current_id, nombre, correo, telefono, activo)
             self.load_all()
             self.clear_form()
         except Exception as e:
@@ -632,12 +604,12 @@ class ClientesVentana(QMainWindow):
 
     def on_eliminar(self) -> None:
         if self.current_id is None:
-            self._show_error("Eliminar", "Selecciona un cliente de la tabla.")
+            self._show_error("Eliminar", "Selecciona un vendedor de la tabla.")
             return
         r = QMessageBox.question(
             self,
             "Confirmar",
-            f"¿Eliminar el cliente ID {self.current_id}?",
+            f"¿Eliminar el vendedor ID {self.current_id}?",
             QMessageBox.Yes | QMessageBox.No,
         )
         if r != QMessageBox.Yes:
@@ -653,7 +625,7 @@ class ClientesVentana(QMainWindow):
 def main() -> None:
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    w = ClientesVentana()
+    w = VendedoresVentana()
     w.show()
     sys.exit(app.exec())
 

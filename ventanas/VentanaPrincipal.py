@@ -8,17 +8,18 @@ from modulos.PaletaColores import *
 from modulos.ItemMenu import ItemMenu
 from ventanas.Clientes import ClientesVentana
 from ventanas.Proveedores import ProveedoresWindow
+from ventanas.Vendedores import VendedoresVentana
+from ventanas.Artistas import ArtistasVentana
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self, conexion):
         super().__init__()
 
-        # 🔥 Guardar conexión primero
         self.conexion = conexion
         self.ventana_clientes = None
         self.ventana_proveedores = None
-
-        # ✅ Ahora sí puedes usarla
+        self.ventana_vendedores = None
+        self.ventana_artistas = None
 
         cursor = self.conexion.cursor()
         cursor.execute("SELECT DB_NAME()")
@@ -92,6 +93,10 @@ class VentanaPrincipal(QMainWindow):
                 it.button.clicked.connect(self.abrir_clientes)
             if t == "Gestión de Proveedores":
                 it.button.clicked.connect(self.abrir_proveedores)
+            if t == "Gestión de Vendedores":
+                it.button.clicked.connect(self.abrir_vendedores)
+            if t == "Gestión de Artistas":
+                it.button.clicked.connect(self.abrir_artistas)
 
         content.addStretch(1)
 
@@ -120,7 +125,7 @@ class VentanaPrincipal(QMainWindow):
 
     def abrir_clientes(self):
         self.hide()
-        self.ventana_clientes = ClientesVentana()
+        self.ventana_clientes = ClientesVentana(self)
         self.ventana_clientes.show()
 
         if self.ventana_clientes is None:
@@ -132,9 +137,27 @@ class VentanaPrincipal(QMainWindow):
 
     def abrir_proveedores(self):
         if self.ventana_proveedores is None:
-            self.ventana_proveedores = ProveedoresWindow()
+            self.ventana_proveedores = ProveedoresWindow(self)
 
         self.hide()
         self.ventana_proveedores.show()
         self.ventana_proveedores.raise_()
         self.ventana_proveedores.activateWindow()
+
+    def abrir_vendedores(self):
+        if self.ventana_vendedores is None:
+            self.ventana_vendedores = VendedoresVentana(self)
+
+        self.hide()
+        self.ventana_vendedores.show()
+        self.ventana_vendedores.raise_()
+        self.ventana_vendedores.activateWindow()
+
+    def abrir_artistas(self):
+        if self.ventana_artistas is None:
+            self.ventana_artistas = ArtistasVentana(self)
+
+        self.hide()
+        self.ventana_artistas.show()
+        self.ventana_artistas.raise_()
+        self.ventana_artistas.activateWindow()
