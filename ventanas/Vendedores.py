@@ -6,8 +6,8 @@ from typing import List, Optional, Tuple
 
 from config.conexion import obtener_conexion
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QRegularExpression
+from PySide6.QtGui import QFont, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -314,6 +314,18 @@ class VendedoresVentana(QMainWindow):
         row4.addWidget(self.btnBuscarID)
         row4.addStretch(1)
         card_layout.addLayout(row4)
+
+        # === Validadores de campos ===
+        validator_letras = QRegularExpressionValidator(
+            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$")
+        )
+        validator_numeros = QRegularExpressionValidator(
+            QRegularExpression(r"^[0-9]+$")
+        )
+        self.txtNombre.setValidator(validator_letras)
+        self.txtTelefono.setValidator(validator_numeros)
+        self.txtBuscarID.setValidator(validator_numeros)
+        self.txtBuscar.setValidator(validator_letras)
 
         # Table
         table_frame = QFrame()

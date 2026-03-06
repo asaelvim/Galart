@@ -6,10 +6,11 @@ from typing import List, Optional, Tuple
 
 from config.conexion import obtener_conexion
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QRegularExpression
+from PySide6.QtGui import QFont, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -63,13 +64,16 @@ def _exec(cur, sql, params=()):
 class PinturasRepo:
     TABLE = "Pinturas"
 
-    def fetch_all(self) -> List[Tuple[int, str, float, int]]:
+    def fetch_all(self) -> List[Tuple[int, str, float, int, str]]:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT id_pintura, titulo, precio, id_artista "
-                "FROM Pinturas ORDER BY id_pintura",
+                "SELECT p.id_pintura, p.titulo, p.precio, p.id_artista, "
+                "ISNULL(a.nombre, '') as artista_nombre "
+                "FROM Pinturas p "
+                "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
+                "ORDER BY p.id_pintura",
             )
             rows = cur.fetchall()
             result = []
@@ -78,16 +82,20 @@ class PinturasRepo:
                 titulo = str(r[1]) if r[1] is not None else ""
                 precio = float(r[2]) if r[2] is not None else 0.0
                 id_artista = int(r[3]) if r[3] is not None else 0
-                result.append((pid, titulo, precio, id_artista))
+                artista_nombre = str(r[4]) if r[4] is not None else ""
+                result.append((pid, titulo, precio, id_artista, artista_nombre))
             return result
 
-    def fetch_by_id(self, pintura_id: int) -> List[Tuple[int, str, float, int]]:
+    def fetch_by_id(self, pintura_id: int) -> List[Tuple[int, str, float, int, str]]:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT id_pintura, titulo, precio, id_artista "
-                "FROM Pinturas WHERE id_pintura = ?",
+                "SELECT p.id_pintura, p.titulo, p.precio, p.id_artista, "
+                "ISNULL(a.nombre, '') as artista_nombre "
+                "FROM Pinturas p "
+                "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
+                "WHERE p.id_pintura = ?",
                 (pintura_id,),
             )
             rows = cur.fetchall()
@@ -97,17 +105,21 @@ class PinturasRepo:
                 titulo = str(r[1]) if r[1] is not None else ""
                 precio = float(r[2]) if r[2] is not None else 0.0
                 id_artista = int(r[3]) if r[3] is not None else 0
-                result.append((pid, titulo, precio, id_artista))
+                artista_nombre = str(r[4]) if r[4] is not None else ""
+                result.append((pid, titulo, precio, id_artista, artista_nombre))
             return result
 
-    def search_by_title(self, titulo: str) -> List[Tuple[int, str, float, int]]:
+    def search_by_title(self, titulo: str) -> List[Tuple[int, str, float, int, str]]:
         with db() as conn:
             cur = conn.cursor()
             like = f"%{titulo}%"
             _exec(
                 cur,
-                "SELECT id_pintura, titulo, precio, id_artista "
-                "FROM Pinturas WHERE titulo LIKE ? ORDER BY id_pintura",
+                "SELECT p.id_pintura, p.titulo, p.precio, p.id_artista, "
+                "ISNULL(a.nombre, '') as artista_nombre "
+                "FROM Pinturas p "
+                "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
+                "WHERE p.titulo LIKE ? ORDER BY p.id_pintura",
                 (like,),
             )
             rows = cur.fetchall()
@@ -117,7 +129,8 @@ class PinturasRepo:
                 titulo_val = str(r[1]) if r[1] is not None else ""
                 precio = float(r[2]) if r[2] is not None else 0.0
                 id_artista = int(r[3]) if r[3] is not None else 0
-                result.append((pid, titulo_val, precio, id_artista))
+                artista_nombre = str(r[4]) if r[4] is not None else ""
+                result.append((pid, titulo_val, precio, id_artista, artista_nombre))
             return result
 
     def insert(self, titulo: str, precio: float, id_artista: int) -> None:
@@ -214,18 +227,18 @@ class PinturasVentana(QMainWindow):
         row_precio.addStretch(1)
         card_layout.addLayout(row_precio)
 
-        # === Fila Artista ID + botón Eliminar ===
+        # === Fila Artista + botón Eliminar ===
         row_artista = QHBoxLayout()
         row_artista.setSpacing(12)
         row_artista.addStretch(1)
-        lbl_artista = QLabel("Artista ID:")
+        lbl_artista = QLabel("Artista:")
         lbl_artista.setObjectName("MutedLabel")
-        self.txtArtistaID = QLineEdit()
-        self.txtArtistaID.setObjectName("txtArtistaID")
-        self.txtArtistaID.setFixedWidth(460)
+        self.cboArtista = QComboBox()
+        self.cboArtista.setObjectName("Combo")
+        self.cboArtista.setFixedWidth(460)
         self.btnEliminar = self._button("Eliminar", self.on_eliminar)
         row_artista.addWidget(lbl_artista)
-        row_artista.addWidget(self.txtArtistaID)
+        row_artista.addWidget(self.cboArtista)
         row_artista.addWidget(self.btnEliminar)
         row_artista.addStretch(1)
         card_layout.addLayout(row_artista)
@@ -262,6 +275,21 @@ class PinturasVentana(QMainWindow):
         row_buscar_id.addStretch(1)
         card_layout.addLayout(row_buscar_id)
 
+        # === Validadores de campos ===
+        validator_titulo = QRegularExpressionValidator(
+            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s]+$")
+        )
+        validator_precio = QRegularExpressionValidator(
+            QRegularExpression(r"^[0-9]*\.?[0-9]*$")
+        )
+        validator_numeros = QRegularExpressionValidator(
+            QRegularExpression(r"^[0-9]+$")
+        )
+        self.txtTitulo.setValidator(validator_titulo)
+        self.txtPrecio.setValidator(validator_precio)
+        self.txtBuscarID.setValidator(validator_numeros)
+        self.txtBuscar.setValidator(validator_titulo)
+
         # === Botón Mostrar todos centrado ===
         row_mostrar = QHBoxLayout()
         row_mostrar.addStretch(1)
@@ -278,7 +306,7 @@ class PinturasVentana(QMainWindow):
 
         self.table = QTableWidget(0, 4)
         self.table.setObjectName("Table")
-        self.table.setHorizontalHeaderLabels(["ID", "Titulo", "Precio", "ArtistaID"])
+        self.table.setHorizontalHeaderLabels(["ID", "Titulo", "Precio", "Artista"])
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
@@ -304,6 +332,7 @@ class PinturasVentana(QMainWindow):
         main.addWidget(card)
         self.setStyleSheet(self._stylesheet())
 
+        self._load_artistas_combo()
         self.load_all()
 
     def closeEvent(self, event):
@@ -319,6 +348,23 @@ class PinturasVentana(QMainWindow):
         b.setFixedWidth(170 if wide else 110)
         b.setFixedHeight(34)
         return b
+
+    def _load_artistas_combo(self) -> None:
+        """Carga la lista de artistas en el ComboBox."""
+        self.cboArtista.blockSignals(True)
+        self.cboArtista.clear()
+        self.cboArtista.addItem("-- Seleccionar artista --", None)
+        try:
+            with db() as conn:
+                cur = conn.cursor()
+                _exec(cur, "SELECT id_artista, nombre FROM Artistas ORDER BY nombre")
+                rows = cur.fetchall()
+                for r in rows:
+                    self.cboArtista.addItem(str(r[1]), int(r[0]))
+        except Exception:
+            pass
+        self.cboArtista.setCurrentIndex(0)
+        self.cboArtista.blockSignals(False)
 
     def _stylesheet(self) -> str:
         return f"""
@@ -350,6 +396,24 @@ class PinturasVentana(QMainWindow):
         }}
         QLineEdit:focus {{
             border: 1px solid {GOLD};
+        }}
+        QComboBox#Combo {{
+            background: #FFFFFF;
+            border: 1px solid {BORDER};
+            border-radius: 8px;
+            padding: 6px 10px;
+            color: {TEXT};
+        }}
+        QComboBox#Combo:focus {{
+            border: 1px solid {GOLD};
+        }}
+        QComboBox::drop-down {{
+            border: none;
+            width: 26px;
+        }}
+        QComboBox::down-arrow {{
+            width: 10px;
+            height: 10px;
         }}
         QPushButton#Btn {{
             background: {BTN_BG};
@@ -398,14 +462,14 @@ class PinturasVentana(QMainWindow):
         self.current_id = None
         self.txtTitulo.clear()
         self.txtPrecio.clear()
-        self.txtArtistaID.clear()
+        self.cboArtista.setCurrentIndex(0)
         self.table.clearSelection()
 
-    def _get_form_values(self) -> Tuple[str, str, str]:
+    def _get_form_values(self) -> Tuple[str, str, Optional[int]]:
         titulo = self.txtTitulo.text().strip()
         precio = self.txtPrecio.text().strip()
-        id_artista = self.txtArtistaID.text().strip()
-        return titulo, precio, id_artista
+        artista_id = self.cboArtista.currentData()
+        return titulo, precio, artista_id
 
     def load_all(self) -> None:
         try:
@@ -414,15 +478,15 @@ class PinturasVentana(QMainWindow):
         except Exception as e:
             self._show_error("Error BD", str(e))
 
-    def populate_table(self, rows: List[Tuple[int, str, float, int]]) -> None:
+    def populate_table(self, rows: List[Tuple[int, str, float, int, str]]) -> None:
         self.table.setRowCount(0)
-        for r, (pid, titulo, precio, id_artista) in enumerate(rows):
+        for r, (pid, titulo, precio, id_artista, artista_nombre) in enumerate(rows):
             self.table.insertRow(r)
             it_id = QTableWidgetItem(str(pid))
             it_id.setTextAlignment(Qt.AlignVCenter | Qt.AlignLeft)
             it_titulo = QTableWidgetItem(titulo)
             it_precio = QTableWidgetItem(f"{precio:.2f}")
-            it_artista = QTableWidgetItem(str(id_artista))
+            it_artista = QTableWidgetItem(artista_nombre)
             for it in (it_id, it_titulo, it_precio, it_artista):
                 it.setFlags(it.flags() & ~Qt.ItemIsEditable)
             self.table.setItem(r, 0, it_id)
@@ -439,16 +503,21 @@ class PinturasVentana(QMainWindow):
         try:
             rows = self.repo.fetch_by_id(pid)
             if rows:
-                _, titulo, precio, id_artista = rows[0]
+                _, titulo, precio, id_artista, _ = rows[0]
                 self.current_id = pid
                 self.txtTitulo.setText(titulo)
                 self.txtPrecio.setText(f"{precio:.2f}")
-                self.txtArtistaID.setText(str(id_artista))
+                index = self.cboArtista.findData(id_artista)
+                if index >= 0:
+                    self.cboArtista.setCurrentIndex(index)
         except Exception:
             self.current_id = pid
             self.txtTitulo.setText(self.table.item(row, 1).text())
             self.txtPrecio.setText(self.table.item(row, 2).text())
-            self.txtArtistaID.setText(self.table.item(row, 3).text())
+            artista_text = self.table.item(row, 3).text()
+            idx = self.cboArtista.findText(artista_text)
+            if idx >= 0:
+                self.cboArtista.setCurrentIndex(idx)
 
     def on_mostrar_todos(self) -> None:
         self.txtBuscar.clear()
@@ -481,12 +550,14 @@ class PinturasVentana(QMainWindow):
         try:
             rows = self.repo.fetch_by_id(pid)
             if rows:
-                _, titulo, precio, id_artista = rows[0]
+                _, titulo, precio, id_artista, _ = rows[0]
                 self.populate_table(rows)
                 self.current_id = pid
                 self.txtTitulo.setText(titulo)
                 self.txtPrecio.setText(f"{precio:.2f}")
-                self.txtArtistaID.setText(str(id_artista))
+                index = self.cboArtista.findData(id_artista)
+                if index >= 0:
+                    self.cboArtista.setCurrentIndex(index)
             else:
                 self.populate_table([])
                 self.clear_form()
@@ -495,7 +566,7 @@ class PinturasVentana(QMainWindow):
             self._show_error("Error BD", str(e))
 
     def on_agregar(self) -> None:
-        titulo, precio_str, id_artista_str = self._get_form_values()
+        titulo, precio_str, artista_id = self._get_form_values()
         if not titulo:
             self._show_error("Validación", "El campo Titulo es obligatorio.")
             return
@@ -504,13 +575,11 @@ class PinturasVentana(QMainWindow):
         except ValueError:
             self._show_error("Validación", "El campo Precio debe ser numérico.")
             return
-        try:
-            id_artista = int(id_artista_str)
-        except ValueError:
-            self._show_error("Validación", "El campo Artista ID debe ser un entero.")
+        if artista_id is None:
+            self._show_error("Validación", "Selecciona un artista.")
             return
         try:
-            self.repo.insert(titulo, precio, id_artista)
+            self.repo.insert(titulo, precio, artista_id)
             self.load_all()
             self.clear_form()
         except Exception as e:
@@ -520,7 +589,7 @@ class PinturasVentana(QMainWindow):
         if self.current_id is None:
             self._show_error("Editar", "Selecciona una pintura de la tabla.")
             return
-        titulo, precio_str, id_artista_str = self._get_form_values()
+        titulo, precio_str, artista_id = self._get_form_values()
         if not titulo:
             self._show_error("Validación", "El campo Titulo es obligatorio.")
             return
@@ -529,13 +598,11 @@ class PinturasVentana(QMainWindow):
         except ValueError:
             self._show_error("Validación", "El campo Precio debe ser numérico.")
             return
-        try:
-            id_artista = int(id_artista_str)
-        except ValueError:
-            self._show_error("Validación", "El campo Artista ID debe ser un entero.")
+        if artista_id is None:
+            self._show_error("Validación", "Selecciona un artista.")
             return
         try:
-            self.repo.update(self.current_id, titulo, precio, id_artista)
+            self.repo.update(self.current_id, titulo, precio, artista_id)
             self.load_all()
             self.clear_form()
         except Exception as e:
