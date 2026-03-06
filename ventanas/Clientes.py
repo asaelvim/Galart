@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -346,18 +347,14 @@ class ClientesVentana(QMainWindow):
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
-        self.table.setColumnWidth(0, 70)
-        self.table.setColumnWidth(1, 220)
-        self.table.setColumnWidth(2, 320)
-        self.table.setColumnWidth(3, 140)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
 
         # IMPORTANTE:
         # - itemSelectionChanged solo llena el formulario
         # - cellClicked abre la ventana detalle (cuando el usuario da click)
         self.table.itemSelectionChanged.connect(self.on_row_selected)
         self.table.cellClicked.connect(self.on_table_clicked)
-
-        self.table.horizontalHeader().setStretchLastSection(True)
 
         tf.addWidget(self.table)
         card_layout.addWidget(table_frame)

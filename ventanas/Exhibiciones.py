@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QDateEdit,
     QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -284,9 +285,8 @@ class ExhibicionesVentana(QMainWindow):
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
-        self.table.setColumnWidth(0, 70)
-        self.table.setColumnWidth(1, 400)
-        self.table.horizontalHeader().setStretchLastSection(True)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
 
         self.table.itemSelectionChanged.connect(self.on_row_selected)
 

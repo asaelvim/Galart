@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QDateEdit,
     QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -337,11 +338,10 @@ class CotizacionesVentana(QMainWindow):
         self.detail_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.detail_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.detail_table.verticalHeader().setVisible(False)
-        self.detail_table.setColumnWidth(0, 280)
-        self.detail_table.setColumnWidth(1, 80)
-        self.detail_table.setColumnWidth(2, 130)
-        self.detail_table.setColumnWidth(3, 120)
-        self.detail_table.setColumnWidth(4, 60)
+        detail_header = self.detail_table.horizontalHeader()
+        detail_header.setSectionResizeMode(QHeaderView.Stretch)
+        detail_header.setSectionResizeMode(4, QHeaderView.Fixed)
+        self.detail_table.setColumnWidth(4, 50)
         self.detail_table.setMaximumHeight(160)
 
         df.addWidget(self.detail_table)
@@ -417,13 +417,8 @@ class CotizacionesVentana(QMainWindow):
         self.cot_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.cot_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.cot_table.verticalHeader().setVisible(False)
-        self.cot_table.setColumnWidth(0, 50)
-        self.cot_table.setColumnWidth(1, 160)
-        self.cot_table.setColumnWidth(2, 140)
-        self.cot_table.setColumnWidth(3, 100)
-        self.cot_table.setColumnWidth(4, 90)
-        self.cot_table.setColumnWidth(5, 80)
-        self.cot_table.horizontalHeader().setStretchLastSection(True)
+        cot_header = self.cot_table.horizontalHeader()
+        cot_header.setSectionResizeMode(QHeaderView.Stretch)
 
         self.cot_table.itemSelectionChanged.connect(self.on_cotizacion_selected)
 
