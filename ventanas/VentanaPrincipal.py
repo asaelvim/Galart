@@ -11,6 +11,7 @@ from ventanas.Proveedores import ProveedoresWindow
 from ventanas.Vendedores import VendedoresVentana
 from ventanas.Artistas import ArtistasVentana
 from ventanas.Pinturas import PinturasVentana
+from ventanas.Exhibiciones import ExhibicionesVentana
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self, conexion):
@@ -103,6 +104,8 @@ class VentanaPrincipal(QMainWindow):
                 it.button.clicked.connect(self.abrir_artistas)
             if t == "Gestión de Pinturas":
                 it.button.clicked.connect(self.abrir_pinturas)
+            if t == "Gestión de Exhibiciones":
+                it.button.clicked.connect(self.abrir_exhibiciones)
 
         content.addStretch(1)
 
@@ -175,3 +178,11 @@ class VentanaPrincipal(QMainWindow):
         self.ventana_pinturas.show()
         self.ventana_pinturas.raise_()
         self.ventana_pinturas.activateWindow()
+
+    def abrir_exhibiciones(self):
+        if self.ventana_exhibiciones is None:
+            self.ventana_exhibiciones = ExhibicionesVentana(self)
+        self.hide()
+        self.ventana_exhibiciones.show()
+        self.ventana_exhibiciones.raise_()
+        self.ventana_exhibiciones.activateWindow()
