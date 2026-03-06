@@ -194,9 +194,9 @@ class ProveedoresWindow(QMainWindow):
         row1 = QHBoxLayout()
         row1.setSpacing(22)
         row1.addStretch(1)
-        row1.addLayout(self._labeled_edit("Nombre:", "txtNombre", width=220))
-        row1.addLayout(self._labeled_edit("Teléfono:", "txtTelefono", width=280))
-        row1.addLayout(self._labeled_edit("Correo:", "txtCorreo", width=220))
+        row1.addLayout(self._labeled_edit("Nombre:", "txtNombre", width=190))
+        row1.addLayout(self._labeled_edit("Teléfono:", "txtTelefono", width=190))
+        row1.addLayout(self._labeled_edit("Correo:", "txtCorreo", width=190))
         row1.addStretch(1)
 
         card_layout.addLayout(row1)
@@ -205,7 +205,7 @@ class ProveedoresWindow(QMainWindow):
         row2 = QHBoxLayout()
         row2.setSpacing(18)
         row2.addStretch(1)
-        row2.addLayout(self._labeled_edit("Dirección:", "txtDireccion", width=420))
+        row2.addLayout(self._labeled_edit("Dirección:", "txtDireccion", width=350))
 
         self.btnAgregar = self._button("Agregar", self.on_agregar, width=150)
         self.btnEditar = self._button("Editar", self.on_editar, width=150)

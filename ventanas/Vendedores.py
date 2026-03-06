@@ -251,9 +251,9 @@ class VendedoresVentana(QMainWindow):
         row1 = QHBoxLayout()
         row1.setSpacing(18)
         row1.addStretch(1)
-        row1.addLayout(self._labeled_edit("Nombre:", "txtNombre", width=220))
-        row1.addLayout(self._labeled_edit("Correo:", "txtCorreo", width=300))
-        row1.addLayout(self._labeled_edit("Teléfono:", "txtTelefono", width=140))
+        row1.addLayout(self._labeled_edit("Nombre:", "txtNombre", width=180))
+        row1.addLayout(self._labeled_edit("Correo:", "txtCorreo", width=220))
+        row1.addLayout(self._labeled_edit("Teléfono:", "txtTelefono", width=110))
 
         # Activo checkbox
         ch_layout = QHBoxLayout()
