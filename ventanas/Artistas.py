@@ -215,7 +215,7 @@ class ArtistasVentana(QMainWindow):
         super().__init__()
         self.ventana_principal = ventana_principal
         self.setWindowTitle("Gestión de Artistas")
-        self.setMinimumSize(980, 560)
+        self.setFixedSize(980, 660)
 
         self.repo = ArtistasRepo()
         self.current_id: Optional[int] = None
@@ -244,9 +244,11 @@ class ArtistasVentana(QMainWindow):
         # Inputs row: Nombre | País | Biografía (simple QLineEdit)
         row1 = QHBoxLayout()
         row1.setSpacing(18)
+        row1.addStretch(1)
         row1.addLayout(self._labeled_edit("Nombre:", "txtNombre", width=260))
         row1.addLayout(self._labeled_edit("País:", "txtPais", width=160))
         row1.addLayout(self._labeled_edit("Biografía:", "txtBiografia", width=360))
+        row1.addStretch(1)
         card_layout.addLayout(row1)
 
         # CRUD buttons
