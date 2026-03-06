@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -339,12 +340,8 @@ class PinturasVentana(QMainWindow):
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
-        self.table.setColumnWidth(0, 70)
-        self.table.setColumnWidth(1, 280)
-        self.table.setColumnWidth(2, 100)
-        self.table.setColumnWidth(3, 180)
-        self.table.setColumnWidth(4, 150)
-        self.table.horizontalHeader().setStretchLastSection(True)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
 
         self.table.itemSelectionChanged.connect(self.on_row_selected)
 

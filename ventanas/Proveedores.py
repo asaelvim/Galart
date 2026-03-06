@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -303,12 +304,8 @@ class ProveedoresWindow(QMainWindow):
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
 
-        self.table.setColumnWidth(0, 90)
-        self.table.setColumnWidth(1, 320)
-        self.table.setColumnWidth(2, 220)
-        self.table.setColumnWidth(3, 260)
-        self.table.setColumnWidth(4, 200)
-        self.table.horizontalHeader().setStretchLastSection(True)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
 
         self.table.itemSelectionChanged.connect(self.on_row_selected)
 
