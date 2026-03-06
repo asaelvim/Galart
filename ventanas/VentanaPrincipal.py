@@ -22,6 +22,7 @@ class VentanaPrincipal(QMainWindow):
         self.ventana_vendedores = None
         self.ventana_artistas = None
         self.ventana_pinturas = None
+        self.ventana_exhibiciones = None
 
         cursor = self.conexion.cursor()
         cursor.execute("SELECT DB_NAME()")
@@ -78,6 +79,7 @@ class VentanaPrincipal(QMainWindow):
             "Gestión de Vendedores",
             "Gestión de Pinturas",
             "Gestión de Artistas",
+            "Gestión de Exhibiciones",
             "Cotizaciones",
             "Gestión de Ventas",
             "Gestión de Compras",
