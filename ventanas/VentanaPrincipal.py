@@ -13,6 +13,7 @@ from ventanas.Artistas import ArtistasVentana
 from ventanas.Pinturas import PinturasVentana
 from ventanas.Exhibiciones import ExhibicionesVentana
 from ventanas.Cotizaciones import CotizacionesVentana
+from ventanas.Ventas import VentasVentana
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self, conexion):
@@ -26,6 +27,7 @@ class VentanaPrincipal(QMainWindow):
         self.ventana_pinturas = None
         self.ventana_exhibiciones = None
         self.ventana_cotizaciones = None
+        self.ventana_ventas = None
 
         cursor = self.conexion.cursor()
         cursor.execute("SELECT DB_NAME()")
@@ -110,6 +112,8 @@ class VentanaPrincipal(QMainWindow):
                 it.button.clicked.connect(self.abrir_exhibiciones)
             if t == "Cotizaciones":
                 it.button.clicked.connect(self.abrir_cotizaciones)
+            if t == "Gestión de Ventas":
+                it.button.clicked.connect(self.abrir_ventas)
 
         content.addStretch(1)
 
@@ -198,3 +202,11 @@ class VentanaPrincipal(QMainWindow):
         self.ventana_cotizaciones.show()
         self.ventana_cotizaciones.raise_()
         self.ventana_cotizaciones.activateWindow()
+
+    def abrir_ventas(self):
+        if self.ventana_ventas is None:
+            self.ventana_ventas = VentasVentana(self)
+        self.hide()
+        self.ventana_ventas.show()
+        self.ventana_ventas.raise_()
+        self.ventana_ventas.activateWindow()
