@@ -158,7 +158,7 @@ class ArtistaDetalleDialog(QDialog):
     def __init__(self, artista_id: int, nombre: str, biografia: str, pais: str, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Artista ID {artista_id}")
-        self.setFixedSize(480, 360)
+        self.setMinimumSize(480, 360)
 
         self.setLayout(QVBoxLayout())
         self.layout().setContentsMargins(18, 18, 18, 18)
@@ -216,7 +216,7 @@ class ArtistasVentana(QMainWindow):
         super().__init__()
         self.ventana_principal = ventana_principal
         self.setWindowTitle("Gestión de Artistas")
-        self.setFixedSize(980, 660)
+        self.setMinimumSize(980, 660)
 
         self.repo = ArtistasRepo()
         self.current_id: Optional[int] = None

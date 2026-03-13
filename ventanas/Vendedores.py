@@ -162,7 +162,7 @@ class VendedorDetalleDialog(QDialog):
     def __init__(self, vendedor_id: int, nombre: str, correo: str, telefono: str, activo: bool, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Vendedor ID {vendedor_id}")
-        self.setFixedSize(380, 260)
+        self.setMinimumSize(380, 260)
 
         self.setLayout(QVBoxLayout())
         self.layout().setContentsMargins(18, 18, 18, 18)

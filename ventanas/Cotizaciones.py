@@ -225,7 +225,7 @@ class CotizacionesVentana(QMainWindow):
         super().__init__()
         self.ventana_principal = ventana_principal
         self.setWindowTitle("Gestión de Cotizaciones")
-        self.setFixedSize(1000, 780)
+        self.setMinimumSize(1000, 780)
 
         self.repo = CotizacionesRepo()
         self.detalle_repo = DetalleCotizacionRepo()

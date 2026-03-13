@@ -162,7 +162,7 @@ class ClienteDetalleDialog(QDialog):
     def __init__(self, cliente_id: int, nombre: str, correo: str, telefono: str, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Cliente ID {cliente_id}")
-        self.setFixedSize(360, 240)
+        self.setMinimumSize(360, 240)
 
         root = QWidget()
         self.setLayout(QVBoxLayout())
@@ -223,7 +223,7 @@ class ClientesVentana(QMainWindow):
         super().__init__()
         self.ventana_principal = ventana_principal
         self.setWindowTitle("Gestión de Clientes")
-        self.setFixedSize(900, 660)
+        self.setMinimumSize(900, 660)
 
         self.repo = ClientesRepo()
         self.current_id: Optional[int] = None

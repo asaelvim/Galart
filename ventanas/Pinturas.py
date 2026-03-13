@@ -182,7 +182,7 @@ class PinturasVentana(QMainWindow):
         super().__init__()
         self.ventana_principal = ventana_principal
         self.setWindowTitle("Gestión de Pinturas")
-        self.setFixedSize(940, 660)
+        self.setMinimumSize(940, 660)
 
         self.repo = PinturasRepo()
         self.current_id: Optional[int] = None

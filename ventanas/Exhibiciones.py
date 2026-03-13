@@ -157,7 +157,7 @@ class ExhibicionesVentana(QMainWindow):
         super().__init__()
         self.ventana_principal = ventana_principal
         self.setWindowTitle("Gestión de Exhibiciones")
-        self.setFixedSize(940, 660)
+        self.setMinimumSize(940, 660)
 
         self.repo = ExhibicionesRepo()
         self.current_id: Optional[int] = None

@@ -164,7 +164,7 @@ class ProveedoresWindow(QMainWindow):
         super().__init__()
         self.ventana_principal = ventana_principal
         self.setWindowTitle("Gestión de proveedores")
-        self.setFixedSize(940, 660)
+        self.setMinimumSize(940, 660)
 
         self.repo = ProveedoresRepo()
         self.current_id: Optional[int] = None

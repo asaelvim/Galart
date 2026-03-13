@@ -208,7 +208,7 @@ class VentasVentana(QMainWindow):
         super().__init__()
         self.ventana_principal = ventana_principal
         self.setWindowTitle("Gestión de Ventas")
-        self.setFixedSize(1000, 700)
+        self.setMinimumSize(1000, 700)
 
         self.repo = VentasRepo()
         self.detalle_repo = DetalleVentaRepo()

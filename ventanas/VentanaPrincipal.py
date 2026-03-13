@@ -33,7 +33,7 @@ class VentanaPrincipal(QMainWindow):
         cursor.execute("SELECT DB_NAME()")
         print("Conectado a:", cursor.fetchone()[0])
         self.setWindowTitle("Galería de Arte")
-        self.setFixedSize(QSize(590, 829))
+        self.setMinimumSize(QSize(590, 829))
 
         root = Fondo()
         self.setCentralWidget(root)
