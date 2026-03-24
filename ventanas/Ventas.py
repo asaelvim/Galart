@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
 # =========================
 # Paleta Opción A (Minimal Luxe)
 # =========================
@@ -60,7 +59,6 @@ def db():
 
 
 def _exec(cur, sql, params=()):
-    """Ejecuta SQL usando placeholders '?' (compatibles con pyodbc)."""
     cur.execute(sql, params)
 
 
@@ -68,7 +66,6 @@ def _exec(cur, sql, params=()):
 # Repositorio Ventas
 # =========================
 class VentasRepo:
-
     def fetch_all(self) -> List[Tuple[int, str, str, str]]:
         with db() as conn:
             cur = conn.cursor()
@@ -151,7 +148,6 @@ class VentasRepo:
 # Repositorio DetalleVenta
 # =========================
 class DetalleVentaRepo:
-
     def fetch_by_venta(self, venta_id: int) -> List[Tuple[int, str, int, str, int]]:
         with db() as conn:
             cur = conn.cursor()
@@ -176,28 +172,159 @@ class DetalleVentaRepo:
                 result.append((id_detalle, titulo, cantidad, subtotal, id_pintura))
             return result
 
-    def insert(self, id_venta: int, id_pintura: int, cantidad: int, subtotal: float) -> None:
+
+# =========================
+# Repositorio Cotizaciones
+# =========================
+class CotizacionesImportRepo:
+    def fetch_all(self) -> List[Tuple[int, str, str, str, int]]:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
-                "INSERT INTO DetalleVenta (id_venta, id_pintura, cantidad, subtotal) "
-                "VALUES (?, ?, ?, ?)",
-                (id_venta, id_pintura, cantidad, subtotal),
+                "SELECT c.id_cotizacion, "
+                "ISNULL(cl.nombre, '') AS cliente, "
+                "c.fecha, c.total, c.id_cliente "
+                "FROM Cotizaciones c "
+                "LEFT JOIN Clientes cl ON c.id_cliente = cl.id_cliente "
+                "ORDER BY c.id_cotizacion",
             )
-            conn.commit()
+            rows = cur.fetchall()
+            result = []
+            for r in rows:
+                id_cotizacion = int(r[0])
+                cliente = str(r[1]) if r[1] else ""
+                fecha = r[2].strftime("%Y-%m-%d") if r[2] else ""
+                total = f"{float(r[3]):.2f}" if r[3] is not None else "0.00"
+                id_cliente = int(r[4]) if r[4] is not None else 0
+                result.append((id_cotizacion, cliente, fecha, total, id_cliente))
+            return result
 
-    def delete_by_venta(self, venta_id: int) -> None:
+    def fetch_by_id(self, cotizacion_id: int) -> List[Tuple[int, str, str, str, int]]:
         with db() as conn:
             cur = conn.cursor()
-            _exec(cur, "DELETE FROM DetalleVenta WHERE id_venta = ?", (venta_id,))
-            conn.commit()
+            _exec(
+                cur,
+                "SELECT c.id_cotizacion, "
+                "ISNULL(cl.nombre, '') AS cliente, "
+                "c.fecha, c.total, c.id_cliente "
+                "FROM Cotizaciones c "
+                "LEFT JOIN Clientes cl ON c.id_cliente = cl.id_cliente "
+                "WHERE c.id_cotizacion = ?",
+                (cotizacion_id,),
+            )
+            rows = cur.fetchall()
+            result = []
+            for r in rows:
+                id_cotizacion = int(r[0])
+                cliente = str(r[1]) if r[1] else ""
+                fecha = r[2].strftime("%Y-%m-%d") if r[2] else ""
+                total = f"{float(r[3]):.2f}" if r[3] is not None else "0.00"
+                id_cliente = int(r[4]) if r[4] is not None else 0
+                result.append((id_cotizacion, cliente, fecha, total, id_cliente))
+            return result
 
-    def delete(self, id_detalle: int) -> None:
+    def fetch_detalle(self, cotizacion_id: int) -> List[Tuple[int, str, int, float, float]]:
         with db() as conn:
             cur = conn.cursor()
-            _exec(cur, "DELETE FROM DetalleVenta WHERE id_detalle = ?", (id_detalle,))
-            conn.commit()
+            _exec(
+                cur,
+                "SELECT d.id_pintura, ISNULL(p.titulo, '') AS titulo, "
+                "d.cantidad, d.precio_unitario, d.subtotal "
+                "FROM DetalleCotizacion d "
+                "LEFT JOIN Pinturas p ON d.id_pintura = p.id_pintura "
+                "WHERE d.id_cotizacion = ? "
+                "ORDER BY d.id_detalle",
+                (cotizacion_id,),
+            )
+            rows = cur.fetchall()
+            result = []
+            for r in rows:
+                id_pintura = int(r[0])
+                titulo = str(r[1]) if r[1] else ""
+                cantidad = int(r[2]) if r[2] is not None else 0
+                precio_unitario = float(r[3]) if r[3] is not None else 0.0
+                subtotal = float(r[4]) if r[4] is not None else 0.0
+                result.append((id_pintura, titulo, cantidad, precio_unitario, subtotal))
+            return result
+
+
+# =========================
+# Repositorio Inventario
+# =========================
+class InventarioRepo:
+    def get_disponible(self, id_pintura: int) -> int:
+        with db() as conn:
+            cur = conn.cursor()
+            return self.get_disponible_cursor(cur, id_pintura)
+
+    def get_disponible_cursor(self, cur, id_pintura: int) -> int:
+        _exec(
+            cur,
+            "SELECT ISNULL(SUM(cantidad), 0) "
+            "FROM Inventario "
+            "WHERE id_pintura = ?",
+            (id_pintura,),
+        )
+        row = cur.fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
+
+    def descontar_cursor(self, cur, id_pintura: int, cantidad: int) -> None:
+        restante = int(cantidad)
+
+        _exec(
+            cur,
+            "SELECT id_inventario, cantidad "
+            "FROM Inventario "
+            "WHERE id_pintura = ? AND cantidad > 0 "
+            "ORDER BY id_inventario",
+            (id_pintura,),
+        )
+        rows = cur.fetchall()
+
+        for id_inventario, cant_actual in rows:
+            if restante <= 0:
+                break
+
+            cant_actual = int(cant_actual)
+            tomar = min(cant_actual, restante)
+            nueva = cant_actual - tomar
+
+            _exec(
+                cur,
+                "UPDATE Inventario SET cantidad = ? WHERE id_inventario = ?",
+                (nueva, int(id_inventario)),
+            )
+            restante -= tomar
+
+        if restante > 0:
+            raise RuntimeError(f"No hay inventario suficiente para la pintura ID {id_pintura}.")
+
+    def restaurar_cursor(self, cur, id_pintura: int, cantidad: int) -> None:
+        _exec(
+            cur,
+            "SELECT TOP 1 id_inventario, cantidad "
+            "FROM Inventario "
+            "WHERE id_pintura = ? "
+            "ORDER BY id_inventario",
+            (id_pintura,),
+        )
+        row = cur.fetchone()
+
+        if row:
+            id_inventario, cant_actual = row
+            nueva = int(cant_actual) + int(cantidad)
+            _exec(
+                cur,
+                "UPDATE Inventario SET cantidad = ? WHERE id_inventario = ?",
+                (nueva, int(id_inventario)),
+            )
+        else:
+            _exec(
+                cur,
+                "INSERT INTO Inventario (id_pintura, cantidad) VALUES (?, ?)",
+                (id_pintura, int(cantidad)),
+            )
 
 
 # =========================
@@ -208,10 +335,13 @@ class VentasVentana(QMainWindow):
         super().__init__()
         self.ventana_principal = ventana_principal
         self.setWindowTitle("Gestión de Ventas")
-        self.setMinimumSize(1000, 700)
+        self.setMinimumSize(1020, 740)
 
         self.repo = VentasRepo()
         self.detalle_repo = DetalleVentaRepo()
+        self.cotizacion_repo = CotizacionesImportRepo()
+        self.inventario_repo = InventarioRepo()
+
         self.current_id: Optional[int] = None
         # (id_pintura, titulo, cantidad, precio_unitario, subtotal_linea)
         self._detail_lines: List[Tuple[int, str, int, float, float]] = []
@@ -230,28 +360,43 @@ class VentasVentana(QMainWindow):
         card_layout.setContentsMargins(18, 14, 18, 18)
         card_layout.setSpacing(10)
 
-        # Título
         title = QLabel("Gestión de Ventas")
         title.setAlignment(Qt.AlignHCenter)
         title.setFont(QFont("Segoe UI", 12))
         title.setObjectName("Title")
         card_layout.addWidget(title)
 
-        # === Fila Cliente ===
-        row_cv = QHBoxLayout()
-        row_cv.setSpacing(12)
-        row_cv.addStretch(1)
+        # Cliente
+        row_cliente = QHBoxLayout()
+        row_cliente.setSpacing(12)
+        row_cliente.addStretch(1)
         lbl_cliente = QLabel("Cliente:")
         lbl_cliente.setObjectName("MutedLabel")
         self.cmbCliente = QComboBox()
         self.cmbCliente.setObjectName("Combo")
         self.cmbCliente.setFixedWidth(260)
-        row_cv.addWidget(lbl_cliente)
-        row_cv.addWidget(self.cmbCliente)
-        row_cv.addStretch(1)
-        card_layout.addLayout(row_cv)
+        row_cliente.addWidget(lbl_cliente)
+        row_cliente.addWidget(self.cmbCliente)
+        row_cliente.addStretch(1)
+        card_layout.addLayout(row_cliente)
 
-        # === Fila Fecha ===
+        # Cotización
+        row_cot = QHBoxLayout()
+        row_cot.setSpacing(12)
+        row_cot.addStretch(1)
+        lbl_cot = QLabel("Cotización:")
+        lbl_cot.setObjectName("MutedLabel")
+        self.cmbCotizacion = QComboBox()
+        self.cmbCotizacion.setObjectName("Combo")
+        self.cmbCotizacion.setFixedWidth(340)
+        self.btnImportarCotizacion = self._button("Importar cotización", self.on_import_cotizacion, wide=True)
+        row_cot.addWidget(lbl_cot)
+        row_cot.addWidget(self.cmbCotizacion)
+        row_cot.addWidget(self.btnImportarCotizacion)
+        row_cot.addStretch(1)
+        card_layout.addLayout(row_cot)
+
+        # Fecha
         row_fecha = QHBoxLayout()
         row_fecha.setSpacing(12)
         row_fecha.addStretch(1)
@@ -268,14 +413,13 @@ class VentasVentana(QMainWindow):
         row_fecha.addStretch(1)
         card_layout.addLayout(row_fecha)
 
-        # === Separador ===
         sep1 = QFrame()
         sep1.setObjectName("Separator")
         sep1.setFrameShape(QFrame.HLine)
         sep1.setFixedHeight(1)
         card_layout.addWidget(sep1)
 
-        # === Fila agregar línea de detalle ===
+        # Agregar línea
         row_line = QHBoxLayout()
         row_line.setSpacing(12)
         row_line.addStretch(1)
@@ -283,14 +427,14 @@ class VentasVentana(QMainWindow):
         lbl_pintura.setObjectName("MutedLabel")
         self.cmbPintura = QComboBox()
         self.cmbPintura.setObjectName("Combo")
-        self.cmbPintura.setFixedWidth(320)
+        self.cmbPintura.setFixedWidth(340)
         lbl_cantidad = QLabel("Cantidad:")
         lbl_cantidad.setObjectName("MutedLabel")
         self.spnCantidad = QSpinBox()
         self.spnCantidad.setObjectName("SpinBox")
         self.spnCantidad.setMinimum(1)
-        self.spnCantidad.setMaximum(999)
-        self.spnCantidad.setFixedWidth(80)
+        self.spnCantidad.setMaximum(99999)
+        self.spnCantidad.setFixedWidth(90)
         self.btnAgregarLinea = self._button("Agregar línea", self.on_add_line)
         row_line.addWidget(lbl_pintura)
         row_line.addWidget(self.cmbPintura)
@@ -301,7 +445,7 @@ class VentasVentana(QMainWindow):
         row_line.addStretch(1)
         card_layout.addLayout(row_line)
 
-        # === Tabla de detalles ===
+        # Tabla detalle
         detail_frame = QFrame()
         detail_frame.setObjectName("TableFrame")
         df = QVBoxLayout(detail_frame)
@@ -314,15 +458,17 @@ class VentasVentana(QMainWindow):
         self.detail_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.detail_table.verticalHeader().setVisible(False)
         detail_header = self.detail_table.horizontalHeader()
-        detail_header.setSectionResizeMode(QHeaderView.Stretch)
+        detail_header.setSectionResizeMode(0, QHeaderView.Stretch)
+        detail_header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        detail_header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
         detail_header.setSectionResizeMode(3, QHeaderView.Fixed)
         self.detail_table.setColumnWidth(3, 50)
-        self.detail_table.setMaximumHeight(160)
+        self.detail_table.setMaximumHeight(180)
 
         df.addWidget(self.detail_table)
         card_layout.addWidget(detail_frame)
 
-        # === Totales ===
+        # Totales
         row_totals = QHBoxLayout()
         row_totals.addStretch(1)
         totals_widget = QWidget()
@@ -338,7 +484,7 @@ class VentasVentana(QMainWindow):
         row_totals.addWidget(totals_widget)
         card_layout.addLayout(row_totals)
 
-        # === Botones de acción ===
+        # Botones acción
         row_actions = QHBoxLayout()
         row_actions.setSpacing(12)
         row_actions.addStretch(1)
@@ -352,14 +498,13 @@ class VentasVentana(QMainWindow):
         row_actions.addStretch(1)
         card_layout.addLayout(row_actions)
 
-        # === Separador ===
         sep2 = QFrame()
         sep2.setObjectName("Separator")
         sep2.setFrameShape(QFrame.HLine)
         sep2.setFixedHeight(1)
         card_layout.addWidget(sep2)
 
-        # === Fila búsqueda ===
+        # Buscar
         row_buscar = QHBoxLayout()
         row_buscar.setSpacing(12)
         row_buscar.addStretch(1)
@@ -377,7 +522,7 @@ class VentasVentana(QMainWindow):
         row_buscar.addStretch(1)
         card_layout.addLayout(row_buscar)
 
-        # === Tabla de ventas ===
+        # Tabla ventas
         ventas_frame = QFrame()
         ventas_frame.setObjectName("TableFrame")
         vf = QVBoxLayout(ventas_frame)
@@ -393,11 +538,10 @@ class VentasVentana(QMainWindow):
         ventas_header.setSectionResizeMode(QHeaderView.Stretch)
 
         self.ventas_table.itemSelectionChanged.connect(self.on_venta_selected)
-
         vf.addWidget(self.ventas_table)
         card_layout.addWidget(ventas_frame)
 
-        # === Botón Salir ===
+        # Salir
         row_bottom = QHBoxLayout()
         row_bottom.addStretch(1)
         self.btnSalir = self._button("Salir", self.close, wide=True)
@@ -410,6 +554,7 @@ class VentasVentana(QMainWindow):
 
         self._load_clientes_combo()
         self._load_pinturas_combo()
+        self._load_cotizaciones_combo()
         self.load_all()
 
     def closeEvent(self, event):
@@ -566,11 +711,23 @@ class VentasVentana(QMainWindow):
                 cur = conn.cursor()
                 _exec(cur, "SELECT id_pintura, ISNULL(titulo, ''), ISNULL(precio, 0) FROM Pinturas ORDER BY titulo")
                 rows = cur.fetchall()
+                self.cmbPintura.addItem("-- Seleccionar pintura --", None)
                 for r in rows:
                     id_pintura = int(r[0])
-                    titulo = str(r[1])
+                    titulo = str(r[1]) if r[1] is not None else ""
                     precio = float(r[2]) if r[2] is not None else 0.0
-                    self.cmbPintura.addItem(f"{titulo} - ${precio:.2f}", (id_pintura, precio))
+                    self.cmbPintura.addItem(f"{titulo} - ${precio:.2f}", (id_pintura, titulo, precio))
+        except Exception as e:
+            self._show_error("Error BD", str(e))
+
+    def _load_cotizaciones_combo(self) -> None:
+        self.cmbCotizacion.clear()
+        try:
+            cotizaciones = self.cotizacion_repo.fetch_all()
+            self.cmbCotizacion.addItem("-- Seleccionar cotización --", None)
+            for id_cotizacion, cliente, fecha, total, id_cliente in cotizaciones:
+                texto = f"#{id_cotizacion} | {cliente} | {fecha} | ${total}"
+                self.cmbCotizacion.addItem(texto, (id_cotizacion, id_cliente, fecha))
         except Exception as e:
             self._show_error("Error BD", str(e))
 
@@ -578,6 +735,44 @@ class VentasVentana(QMainWindow):
         subtotal = sum(line[4] for line in self._detail_lines)
         self.lblSubtotal.setText(f"Subtotal: ${subtotal:.2f}")
         self.lblTotal.setText(f"Total: ${subtotal:.2f}")
+
+    def _cantidad_solicitada_por_pintura(self, id_pintura: int, lines=None) -> int:
+        lines = self._detail_lines if lines is None else lines
+        return sum(cantidad for pid, _, cantidad, _, _ in lines if pid == id_pintura)
+
+    def _validar_existencias_lineas(self, lines) -> bool:
+        acumuladas = {}
+        for id_pintura, _, cantidad, _, _ in lines:
+            acumuladas[id_pintura] = acumuladas.get(id_pintura, 0) + cantidad
+
+        for id_pintura, solicitada in acumuladas.items():
+            disponible = self.inventario_repo.get_disponible(id_pintura)
+            if solicitada > disponible:
+                titulo = next((t for pid, t, _, _, _ in lines if pid == id_pintura), f"ID {id_pintura}")
+                self._show_error(
+                    "Existencias insuficientes",
+                    f"La pintura '{titulo}' solo tiene {disponible} en inventario.\n"
+                    f"Se están solicitando {solicitada}."
+                )
+                return False
+        return True
+
+    def _validar_existencias_lineas_cursor(self, cur, lines) -> bool:
+        acumuladas = {}
+        for id_pintura, _, cantidad, _, _ in lines:
+            acumuladas[id_pintura] = acumuladas.get(id_pintura, 0) + cantidad
+
+        for id_pintura, solicitada in acumuladas.items():
+            disponible = self.inventario_repo.get_disponible_cursor(cur, id_pintura)
+            if solicitada > disponible:
+                titulo = next((t for pid, t, _, _, _ in lines if pid == id_pintura), f"ID {id_pintura}")
+                self._show_error(
+                    "Existencias insuficientes",
+                    f"La pintura '{titulo}' solo tiene {disponible} en inventario.\n"
+                    f"Se están solicitando {solicitada}."
+                )
+                return False
+        return True
 
     def _refresh_detail_table(self) -> None:
         self.detail_table.setRowCount(0)
@@ -591,7 +786,7 @@ class VentasVentana(QMainWindow):
             btn_quitar.setObjectName("Btn")
             btn_quitar.setCursor(Qt.PointingHandCursor)
             btn_quitar.setFixedSize(30, 26)
-            btn_quitar.clicked.connect(lambda checked, i=idx: self.on_remove_line(i))
+            btn_quitar.clicked.connect(lambda checked=False, i=idx: self.on_remove_line(i))
             self.detail_table.setCellWidget(row, 3, btn_quitar)
         self._recalculate_totals()
 
@@ -599,6 +794,8 @@ class VentasVentana(QMainWindow):
         self.current_id = None
         if self.cmbCliente.count() > 0:
             self.cmbCliente.setCurrentIndex(0)
+        if self.cmbCotizacion.count() > 0:
+            self.cmbCotizacion.setCurrentIndex(0)
         self.dateFecha.setDate(QDate.currentDate())
         self._detail_lines.clear()
         self._refresh_detail_table()
@@ -626,13 +823,33 @@ class VentasVentana(QMainWindow):
         if self.cmbPintura.count() == 0:
             self._show_error("Validación", "No hay pinturas disponibles.")
             return
+
         data = self.cmbPintura.currentData()
         if data is None:
             self._show_error("Validación", "Selecciona una pintura.")
             return
-        id_pintura, precio = data
-        titulo = self.cmbPintura.currentText()
+
+        id_pintura, titulo, precio = data
         cantidad = self.spnCantidad.value()
+
+        if self._cantidad_solicitada_por_pintura(id_pintura) + cantidad > self.inventario_repo.get_disponible(id_pintura):
+            disponible = self.inventario_repo.get_disponible(id_pintura)
+            solicitada = self._cantidad_solicitada_por_pintura(id_pintura) + cantidad
+            self._show_error(
+                "Existencias insuficientes",
+                f"La pintura '{titulo}' solo tiene {disponible} en inventario.\n"
+                f"Estás intentando pedir {solicitada}."
+            )
+            return
+
+        for i, (pid, t, cant, p_unit, sub) in enumerate(self._detail_lines):
+            if pid == id_pintura:
+                nueva_cantidad = cant + cantidad
+                nuevo_subtotal = nueva_cantidad * p_unit
+                self._detail_lines[i] = (pid, t, nueva_cantidad, p_unit, nuevo_subtotal)
+                self._refresh_detail_table()
+                return
+
         subtotal_linea = precio * cantidad
         self._detail_lines.append((id_pintura, titulo, cantidad, precio, subtotal_linea))
         self._refresh_detail_table()
@@ -641,6 +858,51 @@ class VentasVentana(QMainWindow):
         if 0 <= index < len(self._detail_lines):
             self._detail_lines.pop(index)
             self._refresh_detail_table()
+
+    def on_import_cotizacion(self) -> None:
+        data = self.cmbCotizacion.currentData()
+        if data is None:
+            self._show_error("Validación", "Selecciona una cotización.")
+            return
+
+        id_cotizacion, id_cliente, fecha_cotizacion = data
+
+        try:
+            detalle = self.cotizacion_repo.fetch_detalle(id_cotizacion)
+            if not detalle:
+                self._show_error("Validación", "La cotización seleccionada no tiene detalle.")
+                return
+
+            if self._detail_lines:
+                r = QMessageBox.question(
+                    self,
+                    "Confirmar",
+                    "Se reemplazará el detalle actual por el de la cotización seleccionada. ¿Deseas continuar?",
+                    QMessageBox.Yes | QMessageBox.No,
+                )
+                if r != QMessageBox.Yes:
+                    return
+
+            if not self._validar_existencias_lineas(detalle):
+                return
+
+            self._detail_lines = list(detalle)
+            self._refresh_detail_table()
+
+            idx = self.cmbCliente.findData(id_cliente)
+            if idx >= 0:
+                self.cmbCliente.setCurrentIndex(idx)
+
+            if fecha_cotizacion:
+                qd = QDate.fromString(fecha_cotizacion, "yyyy-MM-dd")
+                if qd.isValid():
+                    self.dateFecha.setDate(qd)
+
+            self.current_id = None
+            self.btnEliminar.setEnabled(False)
+
+        except Exception as e:
+            self._show_error("Error BD", str(e))
 
     def on_guardar(self) -> None:
         if self.cmbCliente.count() == 0 or self.cmbCliente.currentData() is None:
@@ -655,17 +917,54 @@ class VentasVentana(QMainWindow):
         total = sum(line[4] for line in self._detail_lines)
 
         try:
-            if self.current_id is None:
-                new_id = self.repo.insert(id_cliente, fecha, total)
+            with db() as conn:
+                cur = conn.cursor()
+
+                if self.current_id is None:
+                    if not self._validar_existencias_lineas_cursor(cur, self._detail_lines):
+                        conn.rollback()
+                        return
+
+                    _exec(
+                        cur,
+                        "INSERT INTO Ventas (id_cliente, fecha, total) "
+                        "VALUES (?, ?, ?); SELECT SCOPE_IDENTITY()",
+                        (id_cliente, fecha, total),
+                    )
+                    cur.nextset()
+                    venta_id = int(cur.fetchone()[0])
+
+                else:
+                    old_rows = self.detalle_repo.fetch_by_venta(self.current_id)
+                    for _, _, cantidad, _, id_pintura in old_rows:
+                        self.inventario_repo.restaurar_cursor(cur, id_pintura, cantidad)
+
+                    if not self._validar_existencias_lineas_cursor(cur, self._detail_lines):
+                        conn.rollback()
+                        return
+
+                    _exec(
+                        cur,
+                        "UPDATE Ventas SET id_cliente = ?, fecha = ?, total = ? WHERE id_venta = ?",
+                        (id_cliente, fecha, total, self.current_id),
+                    )
+                    _exec(cur, "DELETE FROM DetalleVenta WHERE id_venta = ?", (self.current_id,))
+                    venta_id = self.current_id
+
                 for (id_pintura, titulo, cantidad, precio_unitario, subtotal_linea) in self._detail_lines:
-                    self.detalle_repo.insert(new_id, id_pintura, cantidad, subtotal_linea)
-            else:
-                self.repo.update(self.current_id, id_cliente, fecha, total)
-                self.detalle_repo.delete_by_venta(self.current_id)
-                for (id_pintura, titulo, cantidad, precio_unitario, subtotal_linea) in self._detail_lines:
-                    self.detalle_repo.insert(self.current_id, id_pintura, cantidad, subtotal_linea)
+                    _exec(
+                        cur,
+                        "INSERT INTO DetalleVenta (id_venta, id_pintura, cantidad, subtotal) "
+                        "VALUES (?, ?, ?, ?)",
+                        (venta_id, id_pintura, cantidad, subtotal_linea),
+                    )
+                    self.inventario_repo.descontar_cursor(cur, id_pintura, cantidad)
+
+                conn.commit()
+
             self.load_all()
             self.clear_form()
+
         except Exception as e:
             self._show_error("Error BD", str(e))
 
@@ -676,6 +975,7 @@ class VentasVentana(QMainWindow):
         if self.current_id is None:
             self._show_error("Eliminar", "Selecciona una venta de la tabla.")
             return
+
         r = QMessageBox.question(
             self,
             "Confirmar",
@@ -684,10 +984,22 @@ class VentasVentana(QMainWindow):
         )
         if r != QMessageBox.Yes:
             return
+
         try:
-            self.repo.delete(self.current_id)
+            with db() as conn:
+                cur = conn.cursor()
+
+                old_rows = self.detalle_repo.fetch_by_venta(self.current_id)
+                for _, _, cantidad, _, id_pintura in old_rows:
+                    self.inventario_repo.restaurar_cursor(cur, id_pintura, cantidad)
+
+                _exec(cur, "DELETE FROM DetalleVenta WHERE id_venta = ?", (self.current_id,))
+                _exec(cur, "DELETE FROM Ventas WHERE id_venta = ?", (self.current_id,))
+                conn.commit()
+
             self.load_all()
             self.clear_form()
+
         except Exception as e:
             self._show_error("Error BD", str(e))
 
@@ -695,33 +1007,34 @@ class VentasVentana(QMainWindow):
         items = self.ventas_table.selectedItems()
         if not items:
             return
+
         row = items[0].row()
         vid = int(self.ventas_table.item(row, 0).text())
+
         try:
             rows = self.repo.fetch_by_id(vid)
             if not rows:
                 return
-            data = rows[0]
-            _, cliente, fecha, total, id_cliente = data
 
+            _, cliente, fecha, total, id_cliente = rows[0]
             self.current_id = vid
 
-            # Seleccionar cliente en combo
             idx = self.cmbCliente.findData(id_cliente)
             if idx >= 0:
                 self.cmbCliente.setCurrentIndex(idx)
 
-            # Setear fecha
             if fecha:
-                self.dateFecha.setDate(QDate.fromString(fecha, "yyyy-MM-dd"))
+                qd = QDate.fromString(fecha, "yyyy-MM-dd")
+                if qd.isValid():
+                    self.dateFecha.setDate(qd)
+                else:
+                    self.dateFecha.setDate(QDate.currentDate())
             else:
                 self.dateFecha.setDate(QDate.currentDate())
 
-            # Cargar detalles
             self._detail_lines.clear()
             detail_rows = self.detalle_repo.fetch_by_venta(vid)
-            for (id_detalle, titulo, cantidad, subtotal_d, id_pintura) in detail_rows:
-                # Recover precio_unitario from combo data if available, else derive from subtotal/cantidad
+            for _, titulo, cantidad, subtotal_d, id_pintura in detail_rows:
                 precio_unitario = float(subtotal_d) / cantidad if cantidad else 0.0
                 self._detail_lines.append((
                     id_pintura,
@@ -730,8 +1043,10 @@ class VentasVentana(QMainWindow):
                     precio_unitario,
                     float(subtotal_d),
                 ))
+
             self._refresh_detail_table()
             self.btnEliminar.setEnabled(True)
+
         except Exception as e:
             self._show_error("Error BD", str(e))
 

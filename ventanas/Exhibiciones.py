@@ -3,7 +3,6 @@ from __future__ import annotations
 import sys
 from contextlib import contextmanager
 from typing import List, Optional, Tuple
-from datetime import datetime
 
 from config.conexion import obtener_conexion
 
@@ -11,6 +10,7 @@ from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QDateEdit,
     QFrame,
     QHBoxLayout,
@@ -25,7 +25,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
 
 # =========================
 # Paleta Opción A (Minimal Luxe)
@@ -59,38 +58,37 @@ def db():
 
 
 def _exec(cur, sql, params=()):
-    """Ejecuta SQL usando placeholders '?' (compatibles con pyodbc)."""
     cur.execute(sql, params)
 
 
 class ExhibicionesRepo:
     TABLE = "Exhibicion"
 
-    def fetch_all(self) -> List[Tuple[int, str, str]]:
-        """Retorna (id_columna, nombre, fecha_str)."""
+    def fetch_all(self) -> List[Tuple[int, str, str, str]]:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT id_columna, nombre, fecha "
-                "FROM Exhibicion ORDER BY id_columna"
+                "SELECT id_exhibicion, nombre, fecha_inicio, fecha_fin "
+                "FROM Exhibicion ORDER BY id_exhibicion",
             )
             rows = cur.fetchall()
             result = []
             for r in rows:
                 eid = int(r[0])
                 nombre = str(r[1]) if r[1] is not None else ""
-                fecha = r[2].strftime("%Y-%m-%d") if r[2] is not None else ""
-                result.append((eid, nombre, fecha))
+                fecha_inicio = r[2].strftime("%Y-%m-%d") if r[2] is not None else ""
+                fecha_fin = r[3].strftime("%Y-%m-%d") if r[3] is not None else ""
+                result.append((eid, nombre, fecha_inicio, fecha_fin))
             return result
 
-    def fetch_by_id(self, exhibicion_id: int) -> List[Tuple[int, str, str]]:
+    def fetch_by_id(self, exhibicion_id: int) -> List[Tuple[int, str, str, str]]:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT id_columna, nombre, fecha "
-                "FROM Exhibicion WHERE id_columna = ?",
+                "SELECT id_exhibicion, nombre, fecha_inicio, fecha_fin "
+                "FROM Exhibicion WHERE id_exhibicion = ?",
                 (exhibicion_id,),
             )
             rows = cur.fetchall()
@@ -98,18 +96,19 @@ class ExhibicionesRepo:
             for r in rows:
                 eid = int(r[0])
                 nombre = str(r[1]) if r[1] is not None else ""
-                fecha = r[2].strftime("%Y-%m-%d") if r[2] is not None else ""
-                result.append((eid, nombre, fecha))
+                fecha_inicio = r[2].strftime("%Y-%m-%d") if r[2] is not None else ""
+                fecha_fin = r[3].strftime("%Y-%m-%d") if r[3] is not None else ""
+                result.append((eid, nombre, fecha_inicio, fecha_fin))
             return result
 
-    def search_by_name(self, nombre: str) -> List[Tuple[int, str, str]]:
+    def search_by_name(self, nombre: str) -> List[Tuple[int, str, str, str]]:
         with db() as conn:
             cur = conn.cursor()
             like = f"%{nombre}%"
             _exec(
                 cur,
-                "SELECT id_columna, nombre, fecha "
-                "FROM Exhibicion WHERE nombre LIKE ? ORDER BY id_columna",
+                "SELECT id_exhibicion, nombre, fecha_inicio, fecha_fin "
+                "FROM Exhibicion WHERE nombre LIKE ? ORDER BY id_exhibicion",
                 (like,),
             )
             rows = cur.fetchall()
@@ -117,36 +116,96 @@ class ExhibicionesRepo:
             for r in rows:
                 eid = int(r[0])
                 nom = str(r[1]) if r[1] is not None else ""
-                fecha = r[2].strftime("%Y-%m-%d") if r[2] is not None else ""
-                result.append((eid, nom, fecha))
+                fecha_inicio = r[2].strftime("%Y-%m-%d") if r[2] is not None else ""
+                fecha_fin = r[3].strftime("%Y-%m-%d") if r[3] is not None else ""
+                result.append((eid, nom, fecha_inicio, fecha_fin))
             return result
 
-    def insert(self, nombre: str, fecha: str) -> None:
+    def insert(self, nombre: str, fecha_inicio: str, fecha_fin: Optional[str]) -> int:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
-                "INSERT INTO Exhibicion (nombre, fecha) VALUES (?, ?)",
-                (nombre, fecha),
+                "INSERT INTO Exhibicion (nombre, fecha_inicio, fecha_fin) "
+                "VALUES (?, ?, ?); SELECT SCOPE_IDENTITY()",
+                (nombre, fecha_inicio, fecha_fin),
             )
+            cur.nextset()
+            new_id = int(cur.fetchone()[0])
             conn.commit()
+            return new_id
 
-    def update(self, exhibicion_id: int, nombre: str, fecha: str) -> None:
+    def update(self, exhibicion_id: int, nombre: str, fecha_inicio: str, fecha_fin: Optional[str]) -> None:
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
-                "UPDATE Exhibicion SET nombre = ?, fecha = ? "
-                "WHERE id_columna = ?",
-                (nombre, fecha, exhibicion_id),
+                "UPDATE Exhibicion SET nombre = ?, fecha_inicio = ?, fecha_fin = ? "
+                "WHERE id_exhibicion = ?",
+                (nombre, fecha_inicio, fecha_fin, exhibicion_id),
             )
             conn.commit()
 
     def delete(self, exhibicion_id: int) -> None:
         with db() as conn:
             cur = conn.cursor()
-            _exec(cur, "DELETE FROM Exhibicion WHERE id_columna = ?", (exhibicion_id,))
+            _exec(cur, "DELETE FROM DetalleExhibicion WHERE id_exhibicion = ?", (exhibicion_id,))
+            _exec(cur, "DELETE FROM Exhibicion WHERE id_exhibicion = ?", (exhibicion_id,))
             conn.commit()
+
+
+class DetalleExhibicionRepo:
+    def fetch_by_exhibicion(self, exhibicion_id: int) -> List[Tuple[int, int, str]]:
+        with db() as conn:
+            cur = conn.cursor()
+            _exec(
+                cur,
+                "SELECT d.id_detalle, d.id_pintura, ISNULL(p.titulo, '') AS titulo "
+                "FROM DetalleExhibicion d "
+                "LEFT JOIN Pinturas p ON d.id_pintura = p.id_pintura "
+                "WHERE d.id_exhibicion = ? "
+                "ORDER BY d.id_detalle",
+                (exhibicion_id,),
+            )
+            rows = cur.fetchall()
+            result = []
+            for r in rows:
+                id_detalle = int(r[0])
+                id_pintura = int(r[1])
+                titulo = str(r[2]) if r[2] is not None else ""
+                result.append((id_detalle, id_pintura, titulo))
+            return result
+
+    def insert(self, id_exhibicion: int, id_pintura: int) -> None:
+        with db() as conn:
+            cur = conn.cursor()
+            _exec(
+                cur,
+                "INSERT INTO DetalleExhibicion (id_exhibicion, id_pintura) VALUES (?, ?)",
+                (id_exhibicion, id_pintura),
+            )
+            conn.commit()
+
+    def delete_by_exhibicion(self, exhibicion_id: int) -> None:
+        with db() as conn:
+            cur = conn.cursor()
+            _exec(cur, "DELETE FROM DetalleExhibicion WHERE id_exhibicion = ?", (exhibicion_id,))
+            conn.commit()
+
+    def delete(self, id_detalle: int) -> None:
+        with db() as conn:
+            cur = conn.cursor()
+            _exec(cur, "DELETE FROM DetalleExhibicion WHERE id_detalle = ?", (id_detalle,))
+            conn.commit()
+
+
+class PinturasRepo:
+    def fetch_all_for_combo(self) -> List[Tuple[int, str]]:
+        with db() as conn:
+            cur = conn.cursor()
+            _exec(cur, "SELECT id_pintura, ISNULL(titulo, '') FROM Pinturas ORDER BY titulo")
+            rows = cur.fetchall()
+            return [(int(r[0]), str(r[1]) if r[1] is not None else "") for r in rows]
 
 
 # =========================
@@ -157,10 +216,15 @@ class ExhibicionesVentana(QMainWindow):
         super().__init__()
         self.ventana_principal = ventana_principal
         self.setWindowTitle("Gestión de Exhibiciones")
-        self.setMinimumSize(940, 660)
+        self.setMinimumSize(980, 720)
 
         self.repo = ExhibicionesRepo()
+        self.detalle_repo = DetalleExhibicionRepo()
+        self.pinturas_repo = PinturasRepo()
         self.current_id: Optional[int] = None
+
+        # (id_pintura, titulo)
+        self._detail_lines: List[Tuple[int, str]] = []
 
         root = QWidget()
         root.setObjectName("Root")
@@ -176,14 +240,13 @@ class ExhibicionesVentana(QMainWindow):
         card_layout.setContentsMargins(18, 14, 18, 18)
         card_layout.setSpacing(12)
 
-        # Título
         title = QLabel("Gestión de Exhibiciones")
         title.setAlignment(Qt.AlignHCenter)
         title.setFont(QFont("Segoe UI", 12))
         title.setObjectName("Title")
         card_layout.addWidget(title)
 
-        # === Fila Nombre + botón Agregar ===
+        # === Nombre ===
         row_nombre = QHBoxLayout()
         row_nombre.setSpacing(12)
         row_nombre.addStretch(1)
@@ -192,48 +255,102 @@ class ExhibicionesVentana(QMainWindow):
         self.txtNombre = QLineEdit()
         self.txtNombre.setObjectName("txtNombre")
         self.txtNombre.setFixedWidth(460)
-        self.btnAgregar = self._button("Agregar", self.on_agregar)
         row_nombre.addWidget(lbl_nombre)
         row_nombre.addWidget(self.txtNombre)
-        row_nombre.addWidget(self.btnAgregar)
         row_nombre.addStretch(1)
         card_layout.addLayout(row_nombre)
 
-        # === Fila Fecha + botón Editar ===
-        row_fecha = QHBoxLayout()
-        row_fecha.setSpacing(12)
-        row_fecha.addStretch(1)
-        lbl_fecha = QLabel("Fecha:")
-        lbl_fecha.setObjectName("MutedLabel")
-        self.dateFecha = QDateEdit()
-        self.dateFecha.setObjectName("dateFecha")
-        self.dateFecha.setFixedWidth(460)
-        self.dateFecha.setCalendarPopup(True)
-        self.dateFecha.setDisplayFormat("yyyy-MM-dd")
-        self.dateFecha.setDate(QDate.currentDate())
+        # === Fechas ===
+        row_fechas = QHBoxLayout()
+        row_fechas.setSpacing(12)
+        row_fechas.addStretch(1)
+
+        lbl_inicio = QLabel("Fecha inicio:")
+        lbl_inicio.setObjectName("MutedLabel")
+        self.dateInicio = QDateEdit()
+        self.dateInicio.setObjectName("dateInicio")
+        self.dateInicio.setFixedWidth(190)
+        self.dateInicio.setCalendarPopup(True)
+        self.dateInicio.setDisplayFormat("yyyy-MM-dd")
+        self.dateInicio.setDate(QDate.currentDate())
+
+        lbl_fin = QLabel("Fecha fin:")
+        lbl_fin.setObjectName("MutedLabel")
+        self.dateFin = QDateEdit()
+        self.dateFin.setObjectName("dateFin")
+        self.dateFin.setFixedWidth(190)
+        self.dateFin.setCalendarPopup(True)
+        self.dateFin.setDisplayFormat("yyyy-MM-dd")
+        self.dateFin.setDate(QDate.currentDate())
+
+        row_fechas.addWidget(lbl_inicio)
+        row_fechas.addWidget(self.dateInicio)
+        row_fechas.addSpacing(20)
+        row_fechas.addWidget(lbl_fin)
+        row_fechas.addWidget(self.dateFin)
+        row_fechas.addStretch(1)
+        card_layout.addLayout(row_fechas)
+
+        # === Botones CRUD ===
+        row_acciones = QHBoxLayout()
+        row_acciones.setSpacing(12)
+        row_acciones.addStretch(1)
+        self.btnAgregar = self._button("Agregar", self.on_agregar)
         self.btnEditar = self._button("Editar", self.on_editar)
-        row_fecha.addWidget(lbl_fecha)
-        row_fecha.addWidget(self.dateFecha)
-        row_fecha.addWidget(self.btnEditar)
-        row_fecha.addStretch(1)
-        card_layout.addLayout(row_fecha)
-
-        # === Fila con Eliminar (alineado con los otros botones) ===
-        row_eliminar = QHBoxLayout()
-        row_eliminar.setSpacing(12)
-        row_eliminar.addStretch(1)
-        spacer_label = QWidget()
-        spacer_label.setFixedWidth(50)
-        spacer_input = QWidget()
-        spacer_input.setFixedWidth(460)
         self.btnEliminar = self._button("Eliminar", self.on_eliminar)
-        row_eliminar.addWidget(spacer_label)
-        row_eliminar.addWidget(spacer_input)
-        row_eliminar.addWidget(self.btnEliminar)
-        row_eliminar.addStretch(1)
-        card_layout.addLayout(row_eliminar)
+        row_acciones.addWidget(self.btnAgregar)
+        row_acciones.addWidget(self.btnEditar)
+        row_acciones.addWidget(self.btnEliminar)
+        row_acciones.addStretch(1)
+        card_layout.addLayout(row_acciones)
 
-        # === Fila Buscar por nombre ===
+        # === Separador ===
+        sep1 = QFrame()
+        sep1.setObjectName("Separator")
+        sep1.setFrameShape(QFrame.HLine)
+        sep1.setFixedHeight(1)
+        card_layout.addWidget(sep1)
+
+        # === Detalle Exhibición ===
+        row_detalle = QHBoxLayout()
+        row_detalle.setSpacing(12)
+        row_detalle.addStretch(1)
+
+        lbl_pintura = QLabel("Pintura:")
+        lbl_pintura.setObjectName("MutedLabel")
+        self.cmbPintura = QComboBox()
+        self.cmbPintura.setObjectName("Combo")
+        self.cmbPintura.setFixedWidth(420)
+
+        self.btnAgregarPintura = self._button("Agregar pintura", self.on_add_painting, wide=True)
+
+        row_detalle.addWidget(lbl_pintura)
+        row_detalle.addWidget(self.cmbPintura)
+        row_detalle.addWidget(self.btnAgregarPintura)
+        row_detalle.addStretch(1)
+        card_layout.addLayout(row_detalle)
+
+        detail_frame = QFrame()
+        detail_frame.setObjectName("TableFrame")
+        df = QVBoxLayout(detail_frame)
+        df.setContentsMargins(10, 10, 10, 10)
+
+        self.detail_table = QTableWidget(0, 2)
+        self.detail_table.setObjectName("Table")
+        self.detail_table.setHorizontalHeaderLabels(["Pintura", ""])
+        self.detail_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.detail_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.detail_table.verticalHeader().setVisible(False)
+        detail_header = self.detail_table.horizontalHeader()
+        detail_header.setSectionResizeMode(0, QHeaderView.Stretch)
+        detail_header.setSectionResizeMode(1, QHeaderView.Fixed)
+        self.detail_table.setColumnWidth(1, 60)
+        self.detail_table.setMaximumHeight(200)
+
+        df.addWidget(self.detail_table)
+        card_layout.addWidget(detail_frame)
+
+        # === Buscar ===
         row_buscar = QHBoxLayout()
         row_buscar.setSpacing(12)
         row_buscar.addStretch(1)
@@ -249,7 +366,6 @@ class ExhibicionesVentana(QMainWindow):
         row_buscar.addStretch(1)
         card_layout.addLayout(row_buscar)
 
-        # === Fila Buscar por ID ===
         row_buscar_id = QHBoxLayout()
         row_buscar_id.setSpacing(12)
         row_buscar_id.addStretch(1)
@@ -265,7 +381,6 @@ class ExhibicionesVentana(QMainWindow):
         row_buscar_id.addStretch(1)
         card_layout.addLayout(row_buscar_id)
 
-        # === Botón Mostrar todos centrado ===
         row_mostrar = QHBoxLayout()
         row_mostrar.addStretch(1)
         self.btnMostrarTodos = self._button("Mostrar todos", self.on_mostrar_todos, wide=True)
@@ -273,15 +388,15 @@ class ExhibicionesVentana(QMainWindow):
         row_mostrar.addStretch(1)
         card_layout.addLayout(row_mostrar)
 
-        # === Tabla ===
+        # === Tabla principal ===
         table_frame = QFrame()
         table_frame.setObjectName("TableFrame")
         tf = QVBoxLayout(table_frame)
         tf.setContentsMargins(12, 12, 12, 12)
 
-        self.table = QTableWidget(0, 3)
+        self.table = QTableWidget(0, 4)
         self.table.setObjectName("Table")
-        self.table.setHorizontalHeaderLabels(["ID", "Nombre", "Fecha"])
+        self.table.setHorizontalHeaderLabels(["ID", "Nombre", "Fecha inicio", "Fecha fin"])
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
@@ -293,7 +408,6 @@ class ExhibicionesVentana(QMainWindow):
         tf.addWidget(self.table)
         card_layout.addWidget(table_frame)
 
-        # === Botón Salir centrado abajo ===
         row_bottom = QHBoxLayout()
         row_bottom.addStretch(1)
         self.btnSalir = self._button("Salir", self.close, wide=True)
@@ -304,6 +418,7 @@ class ExhibicionesVentana(QMainWindow):
         main.addWidget(card)
         self.setStyleSheet(self._stylesheet())
 
+        self._load_pinturas_combo()
         self.load_all()
 
     def closeEvent(self, event):
@@ -341,6 +456,11 @@ class ExhibicionesVentana(QMainWindow):
         QLabel#MutedLabel {{
             color: {MUTED};
         }}
+        QFrame#Separator {{
+            background: {BORDER};
+            border: none;
+            height: 1px;
+        }}
         QLineEdit {{
             background: #FFFFFF;
             border: 1px solid {BORDER};
@@ -360,6 +480,24 @@ class ExhibicionesVentana(QMainWindow):
         }}
         QDateEdit:focus {{
             border: 1px solid {GOLD};
+        }}
+        QComboBox#Combo {{
+            background: #FFFFFF;
+            border: 1px solid {BORDER};
+            border-radius: 8px;
+            padding: 6px 10px;
+            color: {TEXT};
+        }}
+        QComboBox#Combo:focus {{
+            border: 1px solid {GOLD};
+        }}
+        QComboBox::drop-down {{
+            border: none;
+            width: 26px;
+        }}
+        QComboBox::down-arrow {{
+            width: 10px;
+            height: 10px;
         }}
         QPushButton#Btn {{
             background: {BTN_BG};
@@ -404,16 +542,55 @@ class ExhibicionesVentana(QMainWindow):
     def _show_error(self, title: str, msg: str) -> None:
         QMessageBox.critical(self, title, msg)
 
+    def _load_pinturas_combo(self) -> None:
+        self.cmbPintura.clear()
+        try:
+            pinturas = self.pinturas_repo.fetch_all_for_combo()
+            self.cmbPintura.addItem("-- Seleccionar pintura --", None)
+            for id_pintura, titulo in pinturas:
+                self.cmbPintura.addItem(titulo, (id_pintura, titulo))
+        except Exception as e:
+            self._show_error("Error BD", str(e))
+
+    def _get_form_values(self) -> Tuple[str, str, str]:
+        nombre = self.txtNombre.text().strip()
+        fecha_inicio = self.dateInicio.date().toString("yyyy-MM-dd")
+        fecha_fin = self.dateFin.date().toString("yyyy-MM-dd")
+        return nombre, fecha_inicio, fecha_fin
+
+    def _refresh_detail_table(self) -> None:
+        self.detail_table.setRowCount(0)
+        for idx, (id_pintura, titulo) in enumerate(self._detail_lines):
+            row = self.detail_table.rowCount()
+            self.detail_table.insertRow(row)
+
+            it_titulo = QTableWidgetItem(titulo)
+            it_titulo.setFlags(it_titulo.flags() & ~Qt.ItemIsEditable)
+            self.detail_table.setItem(row, 0, it_titulo)
+
+            btn_quitar = QPushButton("X")
+            btn_quitar.setObjectName("Btn")
+            btn_quitar.setCursor(Qt.PointingHandCursor)
+            btn_quitar.setFixedSize(30, 26)
+            btn_quitar.clicked.connect(lambda checked=False, i=idx: self.on_remove_painting(i))
+            self.detail_table.setCellWidget(row, 1, btn_quitar)
+
+    def _set_detail_from_db(self, exhibicion_id: int) -> None:
+        self._detail_lines.clear()
+        rows = self.detalle_repo.fetch_by_exhibicion(exhibicion_id)
+        for _, id_pintura, titulo in rows:
+            self._detail_lines.append((id_pintura, titulo))
+        self._refresh_detail_table()
+
     def clear_form(self) -> None:
         self.current_id = None
         self.txtNombre.clear()
-        self.dateFecha.setDate(QDate.currentDate())
+        self.dateInicio.setDate(QDate.currentDate())
+        self.dateFin.setDate(QDate.currentDate())
+        self.cmbPintura.setCurrentIndex(0)
+        self._detail_lines.clear()
+        self._refresh_detail_table()
         self.table.clearSelection()
-
-    def _get_form_values(self) -> Tuple[str, str]:
-        nombre = self.txtNombre.text().strip()
-        fecha_str = self.dateFecha.date().toString("yyyy-MM-dd")
-        return nombre, fecha_str
 
     def load_all(self) -> None:
         try:
@@ -422,44 +599,60 @@ class ExhibicionesVentana(QMainWindow):
         except Exception as e:
             self._show_error("Error BD", str(e))
 
-    def populate_table(self, rows: List[Tuple[int, str, str]]) -> None:
+    def populate_table(self, rows: List[Tuple[int, str, str, str]]) -> None:
         self.table.setRowCount(0)
-        for r, (eid, nombre, fecha) in enumerate(rows):
+        for r, (eid, nombre, fecha_inicio, fecha_fin) in enumerate(rows):
             self.table.insertRow(r)
+
             it_id = QTableWidgetItem(str(eid))
             it_id.setTextAlignment(Qt.AlignVCenter | Qt.AlignLeft)
             it_nombre = QTableWidgetItem(nombre)
-            it_fecha = QTableWidgetItem(fecha)
-            for it in (it_id, it_nombre, it_fecha):
+            it_inicio = QTableWidgetItem(fecha_inicio)
+            it_fin = QTableWidgetItem(fecha_fin)
+
+            for it in (it_id, it_nombre, it_inicio, it_fin):
                 it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+
             self.table.setItem(r, 0, it_id)
             self.table.setItem(r, 1, it_nombre)
-            self.table.setItem(r, 2, it_fecha)
+            self.table.setItem(r, 2, it_inicio)
+            self.table.setItem(r, 3, it_fin)
 
     def on_row_selected(self) -> None:
         items = self.table.selectedItems()
         if not items:
             return
+
         row = items[0].row()
         eid = int(self.table.item(row, 0).text())
+
         try:
             rows = self.repo.fetch_by_id(eid)
             if rows:
-                _, nombre, fecha = rows[0]
+                _, nombre, fecha_inicio, fecha_fin = rows[0]
                 self.current_id = eid
                 self.txtNombre.setText(nombre)
-                if fecha:
-                    self.dateFecha.setDate(QDate.fromString(fecha, "yyyy-MM-dd"))
+
+                if fecha_inicio:
+                    self.dateInicio.setDate(QDate.fromString(fecha_inicio, "yyyy-MM-dd"))
                 else:
-                    self.dateFecha.setDate(QDate.currentDate())
+                    self.dateInicio.setDate(QDate.currentDate())
+
+                if fecha_fin:
+                    self.dateFin.setDate(QDate.fromString(fecha_fin, "yyyy-MM-dd"))
+                else:
+                    self.dateFin.setDate(QDate.currentDate())
+
+                self._set_detail_from_db(eid)
         except Exception:
             self.current_id = eid
             self.txtNombre.setText(self.table.item(row, 1).text())
-            fecha = self.table.item(row, 2).text()
-            if fecha:
-                self.dateFecha.setDate(QDate.fromString(fecha, "yyyy-MM-dd"))
-            else:
-                self.dateFecha.setDate(QDate.currentDate())
+            fi = self.table.item(row, 2).text()
+            ff = self.table.item(row, 3).text()
+            if fi:
+                self.dateInicio.setDate(QDate.fromString(fi, "yyyy-MM-dd"))
+            if ff:
+                self.dateFin.setDate(QDate.fromString(ff, "yyyy-MM-dd"))
 
     def on_mostrar_todos(self) -> None:
         self.txtBuscar.clear()
@@ -492,14 +685,15 @@ class ExhibicionesVentana(QMainWindow):
         try:
             rows = self.repo.fetch_by_id(eid)
             if rows:
-                _, nombre, fecha = rows[0]
                 self.populate_table(rows)
+                _, nombre, fecha_inicio, fecha_fin = rows[0]
                 self.current_id = eid
                 self.txtNombre.setText(nombre)
-                if fecha:
-                    self.dateFecha.setDate(QDate.fromString(fecha, "yyyy-MM-dd"))
-                else:
-                    self.dateFecha.setDate(QDate.currentDate())
+                if fecha_inicio:
+                    self.dateInicio.setDate(QDate.fromString(fecha_inicio, "yyyy-MM-dd"))
+                if fecha_fin:
+                    self.dateFin.setDate(QDate.fromString(fecha_fin, "yyyy-MM-dd"))
+                self._set_detail_from_db(eid)
             else:
                 self.populate_table([])
                 self.clear_form()
@@ -507,13 +701,72 @@ class ExhibicionesVentana(QMainWindow):
         except Exception as e:
             self._show_error("Error BD", str(e))
 
-    def on_agregar(self) -> None:
-        nombre, fecha = self._get_form_values()
-        if not nombre:
-            self._show_error("Validación", "El campo Nombre es obligatorio.")
+    def on_add_painting(self) -> None:
+        data = self.cmbPintura.currentData()
+        if data is None:
+            self._show_error("Validación", "Selecciona una pintura.")
             return
+
+        id_pintura, titulo = data
+
+        # Evita duplicados en el detalle
+        if any(pid == id_pintura for pid, _ in self._detail_lines):
+            self._show_error("Validación", "Esa pintura ya está agregada a la exhibición.")
+            return
+
+        self._detail_lines.append((id_pintura, titulo))
+        self._refresh_detail_table()
+        self.cmbPintura.setCurrentIndex(0)
+
+    def on_remove_painting(self, index: int) -> None:
+        if 0 <= index < len(self._detail_lines):
+            self._detail_lines.pop(index)
+            self._refresh_detail_table()
+
+    def _validate_form(self) -> Optional[str]:
+        nombre, fecha_inicio, fecha_fin = self._get_form_values()
+
+        if not nombre:
+            return "El campo Nombre es obligatorio."
+
+        if self.dateFin.date() < self.dateInicio.date():
+            return "La fecha fin no puede ser menor que la fecha inicio."
+
+        if not self._detail_lines:
+            return "Agrega al menos una pintura al detalle de exhibición."
+
+        return None
+
+    def on_agregar(self) -> None:
+        error = self._validate_form()
+        if error:
+            self._show_error("Validación", error)
+            return
+
+        nombre, fecha_inicio, fecha_fin = self._get_form_values()
+
         try:
-            self.repo.insert(nombre, fecha)
+            with db() as conn:
+                cur = conn.cursor()
+
+                _exec(
+                    cur,
+                    "INSERT INTO Exhibicion (nombre, fecha_inicio, fecha_fin) "
+                    "VALUES (?, ?, ?); SELECT SCOPE_IDENTITY()",
+                    (nombre, fecha_inicio, fecha_fin),
+                )
+                cur.nextset()
+                new_id = int(cur.fetchone()[0])
+
+                for id_pintura, _titulo in self._detail_lines:
+                    _exec(
+                        cur,
+                        "INSERT INTO DetalleExhibicion (id_exhibicion, id_pintura) VALUES (?, ?)",
+                        (new_id, id_pintura),
+                    )
+
+                conn.commit()
+
             self.load_all()
             self.clear_form()
         except Exception as e:
@@ -523,12 +776,40 @@ class ExhibicionesVentana(QMainWindow):
         if self.current_id is None:
             self._show_error("Editar", "Selecciona una exhibición de la tabla.")
             return
-        nombre, fecha = self._get_form_values()
-        if not nombre:
-            self._show_error("Validación", "El campo Nombre es obligatorio.")
+
+        error = self._validate_form()
+        if error:
+            self._show_error("Validación", error)
             return
+
+        nombre, fecha_inicio, fecha_fin = self._get_form_values()
+
         try:
-            self.repo.update(self.current_id, nombre, fecha)
+            with db() as conn:
+                cur = conn.cursor()
+
+                _exec(
+                    cur,
+                    "UPDATE Exhibicion SET nombre = ?, fecha_inicio = ?, fecha_fin = ? "
+                    "WHERE id_exhibicion = ?",
+                    (nombre, fecha_inicio, fecha_fin, self.current_id),
+                )
+
+                _exec(
+                    cur,
+                    "DELETE FROM DetalleExhibicion WHERE id_exhibicion = ?",
+                    (self.current_id,),
+                )
+
+                for id_pintura, _titulo in self._detail_lines:
+                    _exec(
+                        cur,
+                        "INSERT INTO DetalleExhibicion (id_exhibicion, id_pintura) VALUES (?, ?)",
+                        (self.current_id, id_pintura),
+                    )
+
+                conn.commit()
+
             self.load_all()
             self.clear_form()
         except Exception as e:
@@ -538,6 +819,7 @@ class ExhibicionesVentana(QMainWindow):
         if self.current_id is None:
             self._show_error("Eliminar", "Selecciona una exhibición de la tabla.")
             return
+
         r = QMessageBox.question(
             self,
             "Confirmar",
@@ -546,6 +828,7 @@ class ExhibicionesVentana(QMainWindow):
         )
         if r != QMessageBox.Yes:
             return
+
         try:
             self.repo.delete(self.current_id)
             self.load_all()

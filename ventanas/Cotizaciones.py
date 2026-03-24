@@ -216,6 +216,19 @@ class DetalleCotizacionRepo:
             _exec(cur, "DELETE FROM DetalleCotizacion WHERE id_detalle = ?", (id_detalle,))
             conn.commit()
 
+class InventarioRepo:
+    def get_disponible(self, id_pintura: int) -> int:
+        with db() as conn:
+            cur = conn.cursor()
+            _exec(
+                cur,
+                "SELECT ISNULL(SUM(cantidad), 0) "
+                "FROM Inventario "
+                "WHERE id_pintura = ?",
+                (id_pintura,),
+            )
+            row = cur.fetchone()
+            return int(row[0]) if row and row[0] is not None else 0
 
 # =========================
 # UI Principal para COTIZACIONES
@@ -229,6 +242,7 @@ class CotizacionesVentana(QMainWindow):
 
         self.repo = CotizacionesRepo()
         self.detalle_repo = DetalleCotizacionRepo()
+        self.inventario_repo = InventarioRepo()
         self.current_id: Optional[int] = None
         # (id_pintura, titulo, cantidad, precio_unitario, subtotal_linea)
         self._detail_lines: List[Tuple[int, str, int, float, float]] = []
@@ -624,6 +638,49 @@ class CotizacionesVentana(QMainWindow):
         self.lblIva.setText(f"IVA (16%): ${iva:.2f}")
         self.lblTotal.setText(f"Total: ${total:.2f}")
 
+    def _cantidad_solicitada_por_pintura(self, id_pintura: int) -> int:
+        return sum(cantidad for pid, _, cantidad, _, _ in self._detail_lines if pid == id_pintura)
+
+    def _validar_existencia_para_agregar(self, id_pintura: int, cantidad_nueva: int) -> bool:
+        disponible = self.inventario_repo.get_disponible(id_pintura)
+        solicitada_total = self._cantidad_solicitada_por_pintura(id_pintura) + cantidad_nueva
+
+        if solicitada_total > disponible:
+            titulo = next(
+                (t for pid, t, _, _, _ in self._detail_lines if pid == id_pintura),
+                f"ID {id_pintura}"
+            )
+            self._show_error(
+                "Existencias insuficientes",
+                f"La pintura '{titulo}' solo tiene {disponible} en inventario.\n"
+                f"Estás intentando pedir {solicitada_total}."
+            )
+            return False
+
+        return True
+
+    def _validar_existencias_totales(self) -> bool:
+        acumuladas: dict[int, int] = {}
+
+        for id_pintura, _, cantidad, _, _ in self._detail_lines:
+            acumuladas[id_pintura] = acumuladas.get(id_pintura, 0) + cantidad
+
+        for id_pintura, solicitada in acumuladas.items():
+            disponible = self.inventario_repo.get_disponible(id_pintura)
+            if solicitada > disponible:
+                titulo = next(
+                    (t for pid, t, _, _, _ in self._detail_lines if pid == id_pintura),
+                    f"ID {id_pintura}"
+                )
+                self._show_error(
+                    "Existencias insuficientes",
+                    f"La pintura '{titulo}' tiene {disponible} en inventario.\n"
+                    f"En la cotización estás solicitando {solicitada}."
+                )
+                return False
+
+        return True
+
     def _refresh_detail_table(self) -> None:
         self.detail_table.setRowCount(0)
         for idx, (id_pintura, titulo, cantidad, precio_unitario, subtotal_linea) in enumerate(self._detail_lines):
@@ -674,15 +731,41 @@ class CotizacionesVentana(QMainWindow):
         if self.cmbPintura.count() == 0:
             self._show_error("Validación", "No hay pinturas disponibles.")
             return
+
         data = self.cmbPintura.currentData()
         if data is None:
             self._show_error("Validación", "Selecciona una pintura.")
             return
+
         id_pintura, precio = data
-        titulo = self.cmbPintura.currentText()
         cantidad = self.spnCantidad.value()
+
+        if not self._validar_existencia_para_agregar(id_pintura, cantidad):
+            return
+
+        titulo = self.cmbPintura.currentText()
+
+        # 🔎 Buscar si ya existe la pintura en la lista
+        for i, (pid, t, cant, p_unit, sub) in enumerate(self._detail_lines):
+            if pid == id_pintura:
+                nueva_cantidad = cant + cantidad
+                nuevo_subtotal = nueva_cantidad * p_unit
+
+                self._detail_lines[i] = (
+                    pid,
+                    t,
+                    nueva_cantidad,
+                    p_unit,
+                    nuevo_subtotal
+                )
+
+                self._refresh_detail_table()
+                return
+
+        # Si no existe, agregar nueva línea
         subtotal_linea = precio * cantidad
         self._detail_lines.append((id_pintura, titulo, cantidad, precio, subtotal_linea))
+
         self._refresh_detail_table()
 
     def on_remove_line(self, index: int) -> None:
@@ -694,29 +777,64 @@ class CotizacionesVentana(QMainWindow):
         if self.cmbCliente.count() == 0 or self.cmbCliente.currentData() is None:
             self._show_error("Validación", "Selecciona un cliente.")
             return
+        if self.cmbVendedor.count() == 0 or self.cmbVendedor.currentData() is None:
+            self._show_error("Validación", "Selecciona un vendedor.")
+            return
         if not self._detail_lines:
             self._show_error("Validación", "Agrega al menos una línea de detalle.")
+            return
+
+        # Validar existencias antes de guardar
+        if not self._validar_existencias_totales():
             return
 
         id_cliente = self.cmbCliente.currentData()
         id_vendedor = self.cmbVendedor.currentData()
         fecha = self.dateFecha.date().toString("yyyy-MM-dd")
+
         subtotal = sum(line[4] for line in self._detail_lines)
         iva = subtotal * 0.16
         total = subtotal + iva
 
         try:
-            if self.current_id is None:
-                new_id = self.repo.insert(id_cliente, id_vendedor, fecha, subtotal, iva, total)
-                for (id_pintura, titulo, cantidad, precio_unitario, subtotal_linea) in self._detail_lines:
-                    self.detalle_repo.insert(new_id, id_pintura, cantidad, precio_unitario, subtotal_linea)
-            else:
-                self.repo.update(self.current_id, id_cliente, id_vendedor, fecha, subtotal, iva, total)
-                self.detalle_repo.delete_by_cotizacion(self.current_id)
-                for (id_pintura, titulo, cantidad, precio_unitario, subtotal_linea) in self._detail_lines:
-                    self.detalle_repo.insert(self.current_id, id_pintura, cantidad, precio_unitario, subtotal_linea)
+            with db() as conn:
+                cur = conn.cursor()
+
+                if self.current_id is None:
+                    # Nueva cotización
+                    _exec(
+                        cur,
+                        "INSERT INTO Cotizaciones (id_cliente, id_vendedor, fecha, subtotal, iva, total) "
+                        "VALUES (?, ?, ?, ?, ?, ?); SELECT SCOPE_IDENTITY()",
+                        (id_cliente, id_vendedor, fecha, subtotal, iva, total),
+                    )
+                    cur.nextset()
+                    cotizacion_id = int(cur.fetchone()[0])
+                else:
+                    # Actualizar cotización existente
+                    _exec(
+                        cur,
+                        "UPDATE Cotizaciones SET id_cliente = ?, id_vendedor = ?, fecha = ?, "
+                        "subtotal = ?, iva = ?, total = ? WHERE id_cotizacion = ?",
+                        (id_cliente, id_vendedor, fecha, subtotal, iva, total, self.current_id),
+                    )
+                    _exec(cur, "DELETE FROM DetalleCotizacion WHERE id_cotizacion = ?", (self.current_id,))
+                    cotizacion_id = self.current_id
+
+                # Guardar detalle
+                for id_pintura, titulo, cantidad, precio_unitario, subtotal_linea in self._detail_lines:
+                    _exec(
+                        cur,
+                        "INSERT INTO DetalleCotizacion (id_cotizacion, id_pintura, cantidad, precio_unitario, subtotal) "
+                        "VALUES (?, ?, ?, ?, ?)",
+                        (cotizacion_id, id_pintura, cantidad, precio_unitario, subtotal_linea),
+                    )
+
+                conn.commit()
+
             self.load_all()
             self.clear_form()
+
         except Exception as e:
             self._show_error("Error BD", str(e))
 

@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from typing import List, Optional, Tuple
 
 from config.conexion import obtener_conexion
+from ventanas.Artistas import ArtistasVentana
 
 from PySide6.QtCore import Qt, QRegularExpression
 from PySide6.QtGui import QFont, QRegularExpressionValidator
@@ -217,10 +218,8 @@ class PinturasVentana(QMainWindow):
         self.txtTitulo = QLineEdit()
         self.txtTitulo.setObjectName("txtTitulo")
         self.txtTitulo.setFixedWidth(460)
-        self.btnAgregar = self._button("Agregar", self.on_agregar)
         row_titulo.addWidget(lbl_titulo)
         row_titulo.addWidget(self.txtTitulo)
-        row_titulo.addWidget(self.btnAgregar)
         row_titulo.addStretch(1)
         card_layout.addLayout(row_titulo)
 
@@ -233,26 +232,31 @@ class PinturasVentana(QMainWindow):
         self.txtPrecio = QLineEdit()
         self.txtPrecio.setObjectName("txtPrecio")
         self.txtPrecio.setFixedWidth(460)
-        self.btnEditar = self._button("Editar", self.on_editar)
         row_precio.addWidget(lbl_precio)
         row_precio.addWidget(self.txtPrecio)
-        row_precio.addWidget(self.btnEditar)
         row_precio.addStretch(1)
         card_layout.addLayout(row_precio)
 
-        # === Fila Artista + botón Eliminar ===
+        # === Fila Artista + botón Administrar artistas ===
         row_artista = QHBoxLayout()
         row_artista.setSpacing(12)
         row_artista.addStretch(1)
+
         lbl_artista = QLabel("Artista:")
         lbl_artista.setObjectName("MutedLabel")
+
         self.cboArtista = QComboBox()
         self.cboArtista.setObjectName("Combo")
-        self.cboArtista.setFixedWidth(460)
-        self.btnEliminar = self._button("Eliminar", self.on_eliminar)
+        self.cboArtista.setFixedWidth(360)
+
+        self.btnAdministrarArtistas = self._button(
+            "Administrar artistas", self.abrir_artistas, wide=True
+        )
+        self.btnAdministrarArtistas.setFixedWidth(180)
+
         row_artista.addWidget(lbl_artista)
         row_artista.addWidget(self.cboArtista)
-        row_artista.addWidget(self.btnEliminar)
+        row_artista.addWidget(self.btnAdministrarArtistas)
         row_artista.addStretch(1)
         card_layout.addLayout(row_artista)
 
@@ -260,18 +264,36 @@ class PinturasVentana(QMainWindow):
         row_tecnica = QHBoxLayout()
         row_tecnica.setSpacing(12)
         row_tecnica.addStretch(1)
+
         lbl_tecnica = QLabel("Técnica:")
         lbl_tecnica.setObjectName("MutedLabel")
+
         self.cboTecnica = QComboBox()
         self.cboTecnica.setObjectName("Combo")
         self.cboTecnica.setFixedWidth(460)
+
         row_tecnica.addWidget(lbl_tecnica)
         row_tecnica.addWidget(self.cboTecnica)
-        spacer_tecnica = QWidget()
-        spacer_tecnica.setFixedWidth(110)
-        row_tecnica.addWidget(spacer_tecnica)
+
         row_tecnica.addStretch(1)
+
         card_layout.addLayout(row_tecnica)
+
+        # === Fila de acciones CRUD ===
+        row_acciones = QHBoxLayout()
+        row_acciones.setSpacing(12)
+        row_acciones.addStretch(1)
+
+        self.btnAgregar = self._button("Agregar", self.on_agregar)
+        self.btnEditar = self._button("Editar", self.on_editar)
+        self.btnEliminar = self._button("Eliminar", self.on_eliminar)
+
+        row_acciones.addWidget(self.btnAgregar)
+        row_acciones.addWidget(self.btnEditar)
+        row_acciones.addWidget(self.btnEliminar)
+
+        row_acciones.addStretch(1)
+        card_layout.addLayout(row_acciones)
 
         # === Fila Buscar por titulo ===
         row_buscar = QHBoxLayout()
@@ -691,6 +713,14 @@ class PinturasVentana(QMainWindow):
             self.clear_form()
         except Exception as e:
             self._show_error("Error BD", str(e))
+    
+
+    def abrir_artistas(self) -> None:
+        self.ventana_artistas = ArtistasVentana(self)
+        self.hide()
+        self.ventana_artistas.show()
+        self.ventana_artistas.raise_()
+        self.ventana_artistas.activateWindow()
 
 
 def main() -> None:
