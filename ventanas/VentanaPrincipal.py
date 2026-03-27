@@ -17,10 +17,11 @@ from ventanas.Ventas import VentasVentana
 from ventanas.Compras import ComprasVentana
 
 class VentanaPrincipal(QMainWindow):
-    def __init__(self, conexion):
+    def __init__(self, conexion, usuario_actual=None):
         super().__init__()
 
         self.conexion = conexion
+        self.usuario_actual = usuario_actual
         self.ventana_clientes = None
         self.ventana_proveedores = None
         self.ventana_vendedores = None
@@ -45,7 +46,7 @@ class VentanaPrincipal(QMainWindow):
         main.addStretch(3)
 
         card = Carta()
-        card.setFixedSize(590, 829)
+        card.setFixedSize(590, 909)
 
         card_wrap = QHBoxLayout()
         card_wrap.addStretch(1)
@@ -71,6 +72,12 @@ class VentanaPrincipal(QMainWindow):
         lbl_sub.setFont(QFont("Segoe UI", 12))
         lbl_sub.setStyleSheet(f"color: {DESACTIVADO};")
         content.addWidget(lbl_sub)
+
+        self.lbl_sesion = QLabel(self._texto_sesion())
+        self.lbl_sesion.setAlignment(Qt.AlignHCenter)
+        self.lbl_sesion.setFont(QFont("Segoe UI", 10))
+        self.lbl_sesion.setStyleSheet(f"color: {DESACTIVADO};")
+        content.addWidget(self.lbl_sesion)
 
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
@@ -222,3 +229,15 @@ class VentanaPrincipal(QMainWindow):
         self.ventana_compras.show()
         self.ventana_compras.raise_()
         self.ventana_compras.activateWindow()
+
+    def _texto_sesion(self) -> str:
+        if not self.usuario_actual:
+            return "Sesión: invitado"
+        nombre = self.usuario_actual.get("nombre", "")
+        usuario = self.usuario_actual.get("usuario", "")
+        tipo = self.usuario_actual.get("tipo_nombre", "")
+        return f"Sesión: {nombre} ({usuario}) - {tipo}"
+    def showEvent(self, event):
+        if hasattr(self, "lbl_sesion"):
+            self.lbl_sesion.setText(self._texto_sesion())
+        super().showEvent(event)
