@@ -568,6 +568,53 @@ class CotizacionesVentana(QMainWindow):
         if self.ventana_principal is not None:
             self.ventana_principal.show()
         event.accept()
+    
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.actualizar_selects()
+
+    def actualizar_selects(self) -> None:
+        cliente_actual = self.cmbCliente.currentData()
+        vendedor_actual = self.cmbVendedor.currentData()
+        artista_actual = self.cmbArtista.currentData()
+
+        pintura_actual = None
+        data_pintura = self.cmbPintura.currentData()
+        if data_pintura is not None:
+            pintura_actual = data_pintura[0]
+
+        self._load_clientes_combo()
+        idx_cliente = self.cmbCliente.findData(cliente_actual)
+        if idx_cliente >= 0:
+            self.cmbCliente.setCurrentIndex(idx_cliente)
+        elif self.cmbCliente.count() > 0:
+            self.cmbCliente.setCurrentIndex(0)
+
+        self._load_vendedores_combo()
+        idx_vendedor = self.cmbVendedor.findData(vendedor_actual)
+        if idx_vendedor >= 0:
+            self.cmbVendedor.setCurrentIndex(idx_vendedor)
+        elif self.cmbVendedor.count() > 0:
+            self.cmbVendedor.setCurrentIndex(0)
+
+        self._load_artistas_combo()
+        idx_artista = self.cmbArtista.findData(artista_actual)
+        if idx_artista >= 0:
+            self.cmbArtista.setCurrentIndex(idx_artista)
+        elif self.cmbArtista.count() > 0:
+            self.cmbArtista.setCurrentIndex(0)
+
+        id_artista = self.cmbArtista.currentData()
+        self._load_pinturas_combo(id_artista if id_artista is not None else None)
+
+        if pintura_actual is not None:
+            for i in range(self.cmbPintura.count()):
+                data = self.cmbPintura.itemData(i)
+                if data is not None and data[0] == pintura_actual:
+                    self.cmbPintura.setCurrentIndex(i)
+                    break
+        elif self.cmbPintura.count() > 0:
+            self.cmbPintura.setCurrentIndex(0)
 
     def abrir_clientes(self) -> None:
         if self.ventana_clientes is None:

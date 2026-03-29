@@ -24,12 +24,10 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
+    QDialog,
 )
 
 
-# =========================
-# Paleta Opción A (Minimal Luxe)
-# =========================
 BG = "#F7F4EF"
 SURFACE = "#FFFFFF"
 BORDER = "#E7E1D8"
@@ -59,7 +57,6 @@ def db():
 
 
 def _exec(cur, sql, params=()):
-    """Ejecuta SQL usando placeholders '?' (compatibles con pyodbc)."""
     cur.execute(sql, params)
 
 
@@ -175,9 +172,291 @@ class PinturasRepo:
             conn.commit()
 
 
-# =========================
-# UI Principal para PINTURAS
-# =========================
+class TecnicasRepo:
+    TABLE = "Tecnicas"
+
+    def fetch_all(self) -> List[Tuple[int, str]]:
+        with db() as conn:
+            cur = conn.cursor()
+            _exec(cur, "SELECT id_tecnica, nombre FROM Tecnicas ORDER BY nombre")
+            rows = cur.fetchall()
+            result = []
+            for r in rows:
+                result.append((int(r[0]), str(r[1]) if r[1] is not None else ""))
+            return result
+
+    def insert(self, nombre: str) -> int:
+        with db() as conn:
+            cur = conn.cursor()
+
+            _exec(cur, "SELECT TOP 1 id_tecnica FROM Tecnicas WHERE nombre = ?", (nombre,))
+            existente = cur.fetchone()
+            if existente is not None:
+                raise RuntimeError("Ya existe una técnica con ese nombre.")
+
+            _exec(cur, "INSERT INTO Tecnicas (nombre) VALUES (?)", (nombre,))
+            conn.commit()
+
+            _exec(
+                cur,
+                "SELECT TOP 1 id_tecnica FROM Tecnicas WHERE nombre = ? ORDER BY id_tecnica DESC",
+                (nombre,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise RuntimeError("No se pudo recuperar la técnica guardada.")
+            return int(row[0])
+
+    def delete(self, tecnica_id: int) -> None:
+        with db() as conn:
+            cur = conn.cursor()
+
+            _exec(
+                cur,
+                "SELECT COUNT(*) FROM Pinturas WHERE id_tecnica = ?",
+                (tecnica_id,),
+            )
+            usados = cur.fetchone()
+            cantidad = int(usados[0]) if usados else 0
+
+            if cantidad > 0:
+                raise RuntimeError("No se puede eliminar la técnica porque está asignada a una o más pinturas.")
+
+            _exec(cur, "DELETE FROM Tecnicas WHERE id_tecnica = ?", (tecnica_id,))
+            conn.commit()
+
+
+class TecnicasVentana(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Administrar técnicas")
+        self.setModal(True)
+        self.setMinimumSize(640, 500)
+
+        self.repo = TecnicasRepo()
+        self.current_id: Optional[int] = None
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(12)
+
+        title = QLabel("Administrar técnicas")
+        title.setAlignment(Qt.AlignHCenter)
+        title.setFont(QFont("Segoe UI", 12))
+        title.setObjectName("Title")
+        layout.addWidget(title)
+
+        row_nombre = QHBoxLayout()
+        row_nombre.setSpacing(12)
+        row_nombre.addStretch(1)
+
+        lbl_nombre = QLabel("Nombre:")
+        lbl_nombre.setObjectName("MutedLabel")
+
+        self.txtNombre = QLineEdit()
+        self.txtNombre.setPlaceholderText("Escribe la técnica")
+        self.txtNombre.setFixedWidth(320)
+        self.txtNombre.setFixedHeight(34)
+
+        validator_nombre = QRegularExpressionValidator(
+            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s]+$")
+        )
+        self.txtNombre.setValidator(validator_nombre)
+
+        row_nombre.addWidget(lbl_nombre)
+        row_nombre.addWidget(self.txtNombre)
+        row_nombre.addStretch(1)
+        layout.addLayout(row_nombre)
+
+        row_botones = QHBoxLayout()
+        row_botones.setSpacing(12)
+        row_botones.addStretch(1)
+
+        self.btnGuardar = QPushButton("Guardar")
+        self.btnEliminar = QPushButton("Eliminar")
+        self.btnLimpiar = QPushButton("Limpiar")
+
+        for b in (self.btnGuardar, self.btnEliminar, self.btnLimpiar):
+            b.setObjectName("Btn")
+            b.setFixedWidth(110)
+            b.setFixedHeight(34)
+
+        self.btnGuardar.clicked.connect(self.on_guardar)
+        self.btnEliminar.clicked.connect(self.on_eliminar)
+        self.btnLimpiar.clicked.connect(self.clear_form)
+
+        row_botones.addWidget(self.btnGuardar)
+        row_botones.addWidget(self.btnEliminar)
+        row_botones.addWidget(self.btnLimpiar)
+        row_botones.addStretch(1)
+        layout.addLayout(row_botones)
+
+        table_frame = QFrame()
+        table_frame.setObjectName("TableFrame")
+        tf = QVBoxLayout(table_frame)
+        tf.setContentsMargins(12, 12, 12, 12)
+
+        self.table = QTableWidget(0, 2)
+        self.table.setObjectName("Table")
+        self.table.setHorizontalHeaderLabels(["ID", "Nombre"])
+        self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.verticalHeader().setVisible(False)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
+        self.table.itemSelectionChanged.connect(self.on_row_selected)
+
+        tf.addWidget(self.table)
+        layout.addWidget(table_frame)
+
+        row_salir = QHBoxLayout()
+        row_salir.addStretch(1)
+        self.btnCerrar = QPushButton("Cerrar")
+        self.btnCerrar.setObjectName("Btn")
+        self.btnCerrar.setFixedWidth(120)
+        self.btnCerrar.setFixedHeight(34)
+        self.btnCerrar.clicked.connect(self.accept)
+        row_salir.addWidget(self.btnCerrar)
+        row_salir.addStretch(1)
+        layout.addLayout(row_salir)
+
+        self.setStyleSheet(f"""
+            QDialog {{
+                background: {BG};
+                color: {TEXT};
+                font-family: "Segoe UI";
+                font-size: 10pt;
+            }}
+            QLabel#Title {{
+                color: {TEXT};
+                font-weight: 600;
+                padding: 2px 0 6px 0;
+            }}
+            QLabel#MutedLabel {{
+                color: {MUTED};
+            }}
+            QLineEdit {{
+                background: #FFFFFF;
+                border: 1px solid {BORDER};
+                border-radius: 8px;
+                padding: 6px 10px;
+                color: {TEXT};
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {GOLD};
+            }}
+            QPushButton#Btn {{
+                background: {BTN_BG};
+                color: {BTN_TEXT};
+                border: 1px solid {BTN_BORDER};
+                border-radius: 9px;
+            }}
+            QPushButton#Btn:hover {{
+                border: 1px solid {GOLD};
+                background: {BG};
+            }}
+            QPushButton#Btn:pressed {{
+                background: #EFE7DD;
+            }}
+            QFrame#TableFrame {{
+                background: {SURFACE};
+                border: 1px solid {BORDER};
+                border-radius: 14px;
+            }}
+            QTableWidget#Table {{
+                background: #FFFFFF;
+                border: none;
+                gridline-color: {BORDER};
+                selection-background-color: {PRIMARY};
+                selection-color: #FFFFFF;
+            }}
+            QTableWidget::item {{
+                color: {TEXT};
+            }}
+            QTableWidget::item:selected {{
+                color: #FFFFFF;
+            }}
+            QHeaderView::section {{
+                background: {BTN_BG};
+                border: 1px solid {BORDER};
+                padding: 6px;
+                color: {MUTED};
+                font-weight: 600;
+            }}
+        """)
+
+        self.load_all()
+
+    def clear_form(self) -> None:
+        self.current_id = None
+        self.txtNombre.clear()
+        self.table.clearSelection()
+
+    def load_all(self) -> None:
+        try:
+            rows = self.repo.fetch_all()
+            self.populate_table(rows)
+        except Exception as e:
+            QMessageBox.critical(self, "Error BD", str(e))
+
+    def populate_table(self, rows: List[Tuple[int, str]]) -> None:
+        self.table.setRowCount(0)
+        for r, (tid, nombre) in enumerate(rows):
+            self.table.insertRow(r)
+            it_id = QTableWidgetItem(str(tid))
+            it_nombre = QTableWidgetItem(nombre)
+            for it in (it_id, it_nombre):
+                it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+            self.table.setItem(r, 0, it_id)
+            self.table.setItem(r, 1, it_nombre)
+
+    def on_row_selected(self) -> None:
+        items = self.table.selectedItems()
+        if not items:
+            return
+        row = items[0].row()
+        self.current_id = int(self.table.item(row, 0).text())
+        self.txtNombre.setText(self.table.item(row, 1).text())
+
+    def on_guardar(self) -> None:
+        nombre = self.txtNombre.text().strip()
+        if not nombre:
+            QMessageBox.critical(self, "Validación", "El nombre de la técnica es obligatorio.")
+            return
+        try:
+            tecnica_id = self.repo.insert(nombre)
+            self.load_all()
+            self.clear_form()
+
+            for i in range(self.table.rowCount()):
+                if self.table.item(i, 0).text() == str(tecnica_id):
+                    self.table.selectRow(i)
+                    break
+        except Exception as e:
+            QMessageBox.critical(self, "Error BD", str(e))
+
+    def on_eliminar(self) -> None:
+        if self.current_id is None:
+            QMessageBox.critical(self, "Eliminar", "Selecciona una técnica de la tabla.")
+            return
+
+        r = QMessageBox.question(
+            self,
+            "Confirmar",
+            f"¿Eliminar la técnica ID {self.current_id}?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if r != QMessageBox.Yes:
+            return
+
+        try:
+            self.repo.delete(self.current_id)
+            self.load_all()
+            self.clear_form()
+        except Exception as e:
+            QMessageBox.critical(self, "Error BD", str(e))
+
+
 class PinturasVentana(QMainWindow):
     def __init__(self, ventana_principal=None):
         super().__init__()
@@ -202,14 +481,12 @@ class PinturasVentana(QMainWindow):
         card_layout.setContentsMargins(18, 14, 18, 18)
         card_layout.setSpacing(12)
 
-        # Título
         title = QLabel("Gestión de Pinturas")
         title.setAlignment(Qt.AlignHCenter)
         title.setFont(QFont("Segoe UI", 12))
         title.setObjectName("Title")
         card_layout.addWidget(title)
 
-        # === Fila Titulo + botón Agregar ===
         row_titulo = QHBoxLayout()
         row_titulo.setSpacing(12)
         row_titulo.addStretch(1)
@@ -223,7 +500,6 @@ class PinturasVentana(QMainWindow):
         row_titulo.addStretch(1)
         card_layout.addLayout(row_titulo)
 
-        # === Fila Precio + botón Editar ===
         row_precio = QHBoxLayout()
         row_precio.setSpacing(12)
         row_precio.addStretch(1)
@@ -237,7 +513,6 @@ class PinturasVentana(QMainWindow):
         row_precio.addStretch(1)
         card_layout.addLayout(row_precio)
 
-        # === Fila Artista + botón Administrar artistas ===
         row_artista = QHBoxLayout()
         row_artista.setSpacing(12)
         row_artista.addStretch(1)
@@ -260,7 +535,6 @@ class PinturasVentana(QMainWindow):
         row_artista.addStretch(1)
         card_layout.addLayout(row_artista)
 
-        # === Fila Técnica ===
         row_tecnica = QHBoxLayout()
         row_tecnica.setSpacing(12)
         row_tecnica.addStretch(1)
@@ -270,16 +544,20 @@ class PinturasVentana(QMainWindow):
 
         self.cboTecnica = QComboBox()
         self.cboTecnica.setObjectName("Combo")
-        self.cboTecnica.setFixedWidth(460)
+        self.cboTecnica.setFixedWidth(360)
+
+        self.btnAdministrarTecnicas = self._button(
+            "Administrar técnicas", self.abrir_tecnicas, wide=True
+        )
+        self.btnAdministrarTecnicas.setFixedWidth(180)
 
         row_tecnica.addWidget(lbl_tecnica)
         row_tecnica.addWidget(self.cboTecnica)
-
+        row_tecnica.addWidget(self.btnAdministrarTecnicas)
         row_tecnica.addStretch(1)
 
         card_layout.addLayout(row_tecnica)
 
-        # === Fila de acciones CRUD ===
         row_acciones = QHBoxLayout()
         row_acciones.setSpacing(12)
         row_acciones.addStretch(1)
@@ -295,7 +573,6 @@ class PinturasVentana(QMainWindow):
         row_acciones.addStretch(1)
         card_layout.addLayout(row_acciones)
 
-        # === Fila Buscar por titulo ===
         row_buscar = QHBoxLayout()
         row_buscar.setSpacing(12)
         row_buscar.addStretch(1)
@@ -311,7 +588,6 @@ class PinturasVentana(QMainWindow):
         row_buscar.addStretch(1)
         card_layout.addLayout(row_buscar)
 
-        # === Fila Buscar por ID ===
         row_buscar_id = QHBoxLayout()
         row_buscar_id.setSpacing(12)
         row_buscar_id.addStretch(1)
@@ -327,7 +603,6 @@ class PinturasVentana(QMainWindow):
         row_buscar_id.addStretch(1)
         card_layout.addLayout(row_buscar_id)
 
-        # === Validadores de campos ===
         validator_titulo = QRegularExpressionValidator(
             QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s]+$")
         )
@@ -342,7 +617,6 @@ class PinturasVentana(QMainWindow):
         self.txtBuscarID.setValidator(validator_numeros)
         self.txtBuscar.setValidator(validator_titulo)
 
-        # === Botón Mostrar todos centrado ===
         row_mostrar = QHBoxLayout()
         row_mostrar.addStretch(1)
         self.btnMostrarTodos = self._button("Mostrar todos", self.on_mostrar_todos, wide=True)
@@ -350,7 +624,6 @@ class PinturasVentana(QMainWindow):
         row_mostrar.addStretch(1)
         card_layout.addLayout(row_mostrar)
 
-        # === Tabla ===
         table_frame = QFrame()
         table_frame.setObjectName("TableFrame")
         tf = QVBoxLayout(table_frame)
@@ -370,7 +643,6 @@ class PinturasVentana(QMainWindow):
         tf.addWidget(self.table)
         card_layout.addWidget(table_frame)
 
-        # === Botón Salir centrado abajo ===
         row_bottom = QHBoxLayout()
         row_bottom.addStretch(1)
         self.btnSalir = self._button("Salir", self.close, wide=True)
@@ -390,6 +662,28 @@ class PinturasVentana(QMainWindow):
             self.ventana_principal.show()
         event.accept()
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.actualizar_selects()
+
+    def actualizar_selects(self) -> None:
+        artista_actual = self.cboArtista.currentData()
+        tecnica_actual = self.cboTecnica.currentData()
+
+        self._load_artistas_combo()
+        idx_artista = self.cboArtista.findData(artista_actual)
+        if idx_artista >= 0:
+            self.cboArtista.setCurrentIndex(idx_artista)
+        elif self.cboArtista.count() > 0:
+            self.cboArtista.setCurrentIndex(0)
+
+        self._load_tecnicas_combo()
+        idx_tecnica = self.cboTecnica.findData(tecnica_actual)
+        if idx_tecnica >= 0:
+            self.cboTecnica.setCurrentIndex(idx_tecnica)
+        elif self.cboTecnica.count() > 0:
+            self.cboTecnica.setCurrentIndex(0)
+
     def _button(self, text: str, handler, wide: bool = False) -> QPushButton:
         b = QPushButton(text)
         b.setObjectName("Btn")
@@ -400,7 +694,6 @@ class PinturasVentana(QMainWindow):
         return b
 
     def _load_artistas_combo(self) -> None:
-        """Carga la lista de artistas en el ComboBox."""
         self.cboArtista.blockSignals(True)
         self.cboArtista.clear()
         self.cboArtista.addItem("-- Seleccionar artista --", None)
@@ -417,7 +710,6 @@ class PinturasVentana(QMainWindow):
         self.cboArtista.blockSignals(False)
 
     def _load_tecnicas_combo(self) -> None:
-        """Carga la lista de técnicas en el ComboBox."""
         self.cboTecnica.blockSignals(True)
         self.cboTecnica.clear()
         self.cboTecnica.addItem("-- Seleccionar técnica --", None)
@@ -432,6 +724,11 @@ class PinturasVentana(QMainWindow):
             pass
         self.cboTecnica.setCurrentIndex(0)
         self.cboTecnica.blockSignals(False)
+
+    def abrir_tecnicas(self) -> None:
+        dlg = TecnicasVentana(self)
+        dlg.exec()
+        self.actualizar_selects()
 
     def _stylesheet(self) -> str:
         return f"""
@@ -713,7 +1010,6 @@ class PinturasVentana(QMainWindow):
             self.clear_form()
         except Exception as e:
             self._show_error("Error BD", str(e))
-    
 
     def abrir_artistas(self) -> None:
         self.ventana_artistas = ArtistasVentana(self)
@@ -721,6 +1017,11 @@ class PinturasVentana(QMainWindow):
         self.ventana_artistas.show()
         self.ventana_artistas.raise_()
         self.ventana_artistas.activateWindow()
+
+    def abrir_tecnicas(self) -> None:
+        dlg = TecnicasVentana(self)
+        dlg.exec()
+        self.actualizar_selects()
 
 
 def main() -> None:

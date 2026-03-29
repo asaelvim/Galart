@@ -1205,6 +1205,45 @@ class ComprasVentana(QMainWindow):
         self.ventana_pinturas.raise_()
         self.ventana_pinturas.activateWindow()
 
+    def actualizar_selects(self) -> None:
+        proveedor_actual = self.cmbProveedor.currentData()
+
+        artista_actual = self.cmbArtista.currentData()
+
+        pintura_actual = None
+        data_pintura = self.cmbPintura.currentData()
+        if data_pintura is not None:
+            pintura_actual = data_pintura[0]
+
+        self._load_proveedores_combo()
+        idx_prov = self.cmbProveedor.findData(proveedor_actual)
+        if idx_prov >= 0:
+            self.cmbProveedor.setCurrentIndex(idx_prov)
+        elif self.cmbProveedor.count() > 0:
+            self.cmbProveedor.setCurrentIndex(0)
+
+        self._load_artistas_combo()
+        idx_art = self.cmbArtista.findData(artista_actual)
+        if idx_art >= 0:
+            self.cmbArtista.setCurrentIndex(idx_art)
+        elif self.cmbArtista.count() > 0:
+            self.cmbArtista.setCurrentIndex(0)
+
+        id_artista = self.cmbArtista.currentData()
+        self._load_pinturas_combo(id_artista if id_artista is not None else None)
+
+        if pintura_actual is not None:
+            for i in range(self.cmbPintura.count()):
+                data = self.cmbPintura.itemData(i)
+                if data is not None and data[0] == pintura_actual:
+                    self.cmbPintura.setCurrentIndex(i)
+                    break
+        elif self.cmbPintura.count() > 0:
+            self.cmbPintura.setCurrentIndex(0)
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.actualizar_selects()
+
 
 def main() -> None:
     app = QApplication(sys.argv)
