@@ -4,11 +4,13 @@ from contextlib import contextmanager
 from config.conexion import obtener_conexion
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QCursor
 from PySide6.QtWidgets import (
     QDialog, QFrame, QLabel, QLineEdit,
     QMessageBox, QPushButton, QVBoxLayout, QWidget
 )
+
+from ventanas.RecuperarContrasena import RecuperarContrasenaVentana
 
 BG = "#F7F4EF"
 SURFACE = "#FFFFFF"
@@ -45,7 +47,7 @@ class LoginVentana(QDialog):
         self.usuario_actual = None
 
         self.setWindowTitle("Login")
-        self.setFixedSize(620, 520)
+        self.setFixedSize(620, 560)
         self.setModal(True)
 
         root = QWidget()
@@ -107,6 +109,14 @@ class LoginVentana(QDialog):
         card_layout.addWidget(self.txtUsuario, alignment=Qt.AlignCenter)
         card_layout.addWidget(self.txtContrasena, alignment=Qt.AlignCenter)
 
+        # ENLACE "¿Olvidaste tu contraseña?"
+        self.lbl_olvide = QLabel("¿Olvidaste tu contraseña?")
+        self.lbl_olvide.setAlignment(Qt.AlignCenter)
+        self.lbl_olvide.setObjectName("OlvideLink")
+        self.lbl_olvide.setCursor(QCursor(Qt.PointingHandCursor))
+        self.lbl_olvide.mousePressEvent = self._abrir_recuperar_contrasena
+        card_layout.addWidget(self.lbl_olvide, alignment=Qt.AlignCenter)
+
         card_layout.addSpacing(10)
 
         card_layout.addWidget(self.btnEntrar, alignment=Qt.AlignCenter)
@@ -143,6 +153,12 @@ class LoginVentana(QDialog):
             font-size: 12pt;
         }}
 
+        QLabel#OlvideLink {{
+            color: {GOLD};
+            font-size: 10pt;
+            text-decoration: underline;
+        }}
+
         QLineEdit {{
             background: #FFFFFF;
             border: 1px solid {BORDER};
@@ -169,6 +185,10 @@ class LoginVentana(QDialog):
         }}
 
         """
+
+    def _abrir_recuperar_contrasena(self, event=None):
+        dialogo = RecuperarContrasenaVentana(self)
+        dialogo.exec()
 
     def _show_error(self, title, msg):
         QMessageBox.critical(self, title, msg)
