@@ -1,21 +1,16 @@
 from __future__ import annotations
 
-import smtplib
+import urllib.parse
 from contextlib import contextmanager
-from email.mime.text import MIMEText
 
 from config.conexion import obtener_conexion
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QDialog, QFrame, QLabel, QLineEdit,
     QMessageBox, QPushButton, QVBoxLayout, QWidget
 )
-
-# Configurar con las credenciales reales del remitente antes de usar
-SMTP_EMAIL = "tucorreo@gmail.com"
-SMTP_PASSWORD = "tu_app_password"
 
 BG = "#F7F4EF"
 SURFACE = "#FFFFFF"
@@ -49,7 +44,7 @@ class RecuperarContrasenaVentana(QDialog):
         super().__init__(parent)
 
         self.setWindowTitle("Recuperar contraseña")
-        self.setFixedSize(620, 420)
+        self.setFixedSize(620, 460)
         self.setModal(True)
 
         root = QWidget()
@@ -74,27 +69,32 @@ class RecuperarContrasenaVentana(QDialog):
         lbl_title.setFont(QFont("Segoe UI", 22, QFont.Bold))
         lbl_title.setObjectName("Title")
 
-        lbl_sub = QLabel("Ingresa tu nombre de usuario y te enviaremos\ntu contraseña al correo registrado.")
+        lbl_sub = QLabel("Ingresa tu usuario y número de teléfono\npara verificar tu identidad.")
         lbl_sub.setAlignment(Qt.AlignCenter)
         lbl_sub.setFont(QFont("Segoe UI", 11))
         lbl_sub.setObjectName("MutedLabel")
 
-        # INPUT
+        # INPUTS
         self.txtUsuario = QLineEdit()
-        self.txtUsuario.setPlaceholderText("Nombre de usuario")
+        self.txtUsuario.setPlaceholderText("Usuario")
         self.txtUsuario.setFixedWidth(320)
         self.txtUsuario.setFixedHeight(46)
 
+        self.txtTelefono = QLineEdit()
+        self.txtTelefono.setPlaceholderText("Teléfono (ej. 5512345678)")
+        self.txtTelefono.setFixedWidth(320)
+        self.txtTelefono.setFixedHeight(46)
+
         # BOTONES
-        self.btnEnviar = QPushButton("Enviar correo")
-        self.btnEnviar.setFixedWidth(320)
-        self.btnEnviar.setFixedHeight(48)
+        self.btnVerificar = QPushButton("Verificar")
+        self.btnVerificar.setFixedWidth(320)
+        self.btnVerificar.setFixedHeight(48)
 
         self.btnCancelar = QPushButton("Cancelar")
         self.btnCancelar.setFixedWidth(320)
         self.btnCancelar.setFixedHeight(40)
 
-        self.btnEnviar.clicked.connect(self.enviar_correo)
+        self.btnVerificar.clicked.connect(self.verificar)
         self.btnCancelar.clicked.connect(self.reject)
 
         # AGREGAR AL LAYOUT
@@ -103,17 +103,18 @@ class RecuperarContrasenaVentana(QDialog):
         card_layout.addSpacing(10)
 
         card_layout.addWidget(self.txtUsuario, alignment=Qt.AlignCenter)
+        card_layout.addWidget(self.txtTelefono, alignment=Qt.AlignCenter)
 
         card_layout.addSpacing(10)
 
-        card_layout.addWidget(self.btnEnviar, alignment=Qt.AlignCenter)
+        card_layout.addWidget(self.btnVerificar, alignment=Qt.AlignCenter)
         card_layout.addWidget(self.btnCancelar, alignment=Qt.AlignCenter)
 
         main.addWidget(card)
 
         self.setStyleSheet(self._stylesheet())
 
-        self.txtUsuario.returnPressed.connect(self.enviar_correo)
+        self.txtTelefono.returnPressed.connect(self.verificar)
 
     def _stylesheet(self):
         return f"""
@@ -135,7 +136,7 @@ class RecuperarContrasenaVentana(QDialog):
 
         QLabel#MutedLabel {{
             color: {MUTED};
-            font-size: 11pt;
+            font-size: 12pt;
         }}
 
         QLineEdit {{
@@ -145,10 +146,6 @@ class RecuperarContrasenaVentana(QDialog):
             padding: 10px 14px;
             font-size: 13pt;
             color: {TEXT};
-        }}
-
-        QLineEdit::placeholder {{
-            color: #9A9A9A;
         }}
 
         QLineEdit:focus {{
@@ -165,11 +162,12 @@ class RecuperarContrasenaVentana(QDialog):
 
         """
 
-    def enviar_correo(self):
+    def verificar(self):
         usuario = self.txtUsuario.text().strip()
+        telefono_ingresado = self.txtTelefono.text().strip()
 
-        if not usuario:
-            QMessageBox.warning(self, "Validación", "Por favor ingresa tu nombre de usuario.")
+        if not usuario or not telefono_ingresado:
+            QMessageBox.warning(self, "Validación", "Por favor completa todos los campos.")
             return
 
         try:
@@ -177,7 +175,7 @@ class RecuperarContrasenaVentana(QDialog):
                 cur = conn.cursor()
                 _exec(
                     cur,
-                    "SELECT email, contraseña FROM Usuarios WHERE usuario = ? AND activo = 1",
+                    "SELECT telefono, contraseña FROM Usuarios WHERE usuario = ? AND activo = 1",
                     (usuario,),
                 )
                 fila = cur.fetchone()
@@ -190,13 +188,21 @@ class RecuperarContrasenaVentana(QDialog):
                     )
                     return
 
-                email, contrasena = fila[0], fila[1]
+                telefono_bd, contrasena = fila[0], fila[1]
 
-                if not email or not email.strip():
+                if not telefono_bd or not telefono_bd.strip():
                     QMessageBox.warning(
                         self,
-                        "Sin correo registrado",
-                        "Este usuario no tiene un correo registrado.",
+                        "Sin teléfono registrado",
+                        "Este usuario no tiene un número de teléfono registrado.",
+                    )
+                    return
+
+                if telefono_ingresado.strip() != telefono_bd.strip():
+                    QMessageBox.warning(
+                        self,
+                        "Teléfono incorrecto",
+                        "El número de teléfono no coincide con el registrado.",
                     )
                     return
 
@@ -204,32 +210,16 @@ class RecuperarContrasenaVentana(QDialog):
             QMessageBox.critical(self, "Error BD", str(e))
             return
 
-        try:
-            mensaje = MIMEText(
-                f"Hola {usuario},\n\n"
-                f"Tu contraseña de acceso a Galart es: {contrasena}\n\n"
-                "Si no solicitaste este correo, ignóralo.\n\n"
-                "— Equipo Galart",
-                "plain",
-                "utf-8",
-            )
-            mensaje["Subject"] = "Recuperación de contraseña - Galart"
-            mensaje["From"] = SMTP_EMAIL
-            mensaje["To"] = email.strip()
+        # Construir enlace de WhatsApp
+        mensaje = f"Hola, tu contraseña de Galart es: {contrasena}"
+        numero_limpio = ''.join(c for c in telefono_bd.strip() if c.isdigit())
+        url = f"https://wa.me/{numero_limpio}?text={urllib.parse.quote(mensaje)}"
 
-            with smtplib.SMTP("smtp.gmail.com", 587) as servidor:
-                servidor.ehlo()
-                servidor.starttls()
-                servidor.login(SMTP_EMAIL, SMTP_PASSWORD)
-                servidor.sendmail(SMTP_EMAIL, email.strip(), mensaje.as_string())
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error al enviar correo", str(e))
-            return
+        QDesktopServices.openUrl(QUrl(url))
 
         QMessageBox.information(
             self,
-            "Correo enviado",
-            "Se ha enviado la contraseña al correo registrado.",
+            "WhatsApp",
+            f"Se abrirá WhatsApp con tu contraseña. Si no se abre automáticamente, visita: {url}",
         )
         self.accept()
