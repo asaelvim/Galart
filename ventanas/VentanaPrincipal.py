@@ -15,6 +15,7 @@ from ventanas.Exhibiciones import ExhibicionesVentana
 from ventanas.Cotizaciones import CotizacionesVentana
 from ventanas.Ventas import VentasVentana
 from ventanas.Compras import ComprasVentana
+from ventanas.Reportes import ReportesVentana
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self, conexion, usuario_actual=None):
@@ -31,6 +32,7 @@ class VentanaPrincipal(QMainWindow):
         self.ventana_cotizaciones = None
         self.ventana_ventas = None
         self.ventana_compras = None
+        self.ventana_reportes = None
 
         cursor = self.conexion.cursor()
         cursor.execute("SELECT DB_NAME()")
@@ -125,6 +127,8 @@ class VentanaPrincipal(QMainWindow):
                 it.button.clicked.connect(self.abrir_ventas)
             if t == "Gestión de Compras":
                 it.button.clicked.connect(self.abrir_compras)
+            if t == "Reportes":
+                it.button.clicked.connect(self.abrir_reportes)
 
         content.addStretch(1)
 
@@ -152,13 +156,10 @@ class VentanaPrincipal(QMainWindow):
 
 
     def abrir_clientes(self):
-        self.hide()
-        self.ventana_clientes = ClientesVentana(self)
-        self.ventana_clientes.show()
-
         if self.ventana_clientes is None:
-            self.ventana_clientes = ClientesVentana()
+            self.ventana_clientes = ClientesVentana(self)
 
+        self.hide()
         self.ventana_clientes.show()
         self.ventana_clientes.raise_()
         self.ventana_clientes.activateWindow()
@@ -229,6 +230,15 @@ class VentanaPrincipal(QMainWindow):
         self.ventana_compras.show()
         self.ventana_compras.raise_()
         self.ventana_compras.activateWindow()
+
+    def abrir_reportes(self):
+        if self.ventana_reportes is None:
+            self.ventana_reportes = ReportesVentana(self)
+
+        self.hide()
+        self.ventana_reportes.show()
+        self.ventana_reportes.raise_()
+        self.ventana_reportes.activateWindow()
 
     def _texto_sesion(self) -> str:
         if not self.usuario_actual:
