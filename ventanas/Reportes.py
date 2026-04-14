@@ -799,29 +799,20 @@ class VentanaReporteInventario(QMainWindow):
         filtros = QHBoxLayout()
         filtros.setSpacing(10)
 
-        lbl_estado = QLabel("Estado:")
-        lbl_estado.setStyleSheet(f"color: {DESACTIVADO};")
-
-        self.combo_estado = QComboBox()
-        self.combo_estado.setFixedHeight(36)
-        self.combo_estado.setFont(QFont("Segoe UI", 10))
-        self.combo_estado.addItems(["Todos", "Disponible", "Vendido", "Reservado"])
-
-        btn_buscar = QPushButton("Buscar")
-        btn_buscar.setCursor(Qt.PointingHandCursor)
-        btn_buscar.setFixedHeight(36)
-        btn_buscar.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
-        btn_buscar.setStyleSheet(_BTN_BUSCAR_STYLE)
-        btn_buscar.clicked.connect(self.cargar_datos)
-
-        filtros.addWidget(lbl_estado)
-        filtros.addWidget(self.combo_estado)
         filtros.addStretch(1)
-        filtros.addWidget(btn_buscar)
+
+        btn_actualizar = QPushButton("Actualizar")
+        btn_actualizar.setCursor(Qt.PointingHandCursor)
+        btn_actualizar.setFixedHeight(36)
+        btn_actualizar.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
+        btn_actualizar.setStyleSheet(_BTN_BUSCAR_STYLE)
+        btn_actualizar.clicked.connect(self.cargar_datos)
+
+        filtros.addWidget(btn_actualizar)
         content.addLayout(filtros)
 
         self.tabla = _make_tabla(
-            ["ID", "Título", "Artista", "Técnica", "Precio", "Estado"]
+            ["ID", "Título", "Artista", "Técnica", "Precio", "Stock"]
         )
         content.addWidget(self.tabla)
 
@@ -829,14 +820,13 @@ class VentanaReporteInventario(QMainWindow):
         totales_row.setSpacing(10)
 
         self.lbl_total_pinturas = QLabel("Total: 0")
-        self.lbl_disponibles = QLabel("Disponibles: 0")
-        self.lbl_vendidas = QLabel("Vendidas: 0")
+        self.lbl_total_stock = QLabel("Total en stock: 0")
 
         lbl_style = (
             f"color: {TEXTO_BOTON}; background: {FONDO_B}; border: 1px solid {BORDE};"
             f" border-radius: 8px; padding: 6px 10px;"
         )
-        for lbl in (self.lbl_total_pinturas, self.lbl_disponibles, self.lbl_vendidas):
+        for lbl in (self.lbl_total_pinturas, self.lbl_total_stock):
             lbl.setFont(QFont("Segoe UI", 10))
             lbl.setStyleSheet(lbl_style)
             totales_row.addWidget(lbl)
@@ -872,41 +862,30 @@ class VentanaReporteInventario(QMainWindow):
     def cargar_datos(self):
         try:
             cursor = self.conexion.cursor()
-            estado = self.combo_estado.currentText()
-            if estado == "Todos":
-                sql = """
-                    SELECT p.id_pintura, p.titulo, a.nombre AS artista,
-                           p.tecnica, p.precio, p.estado
-                    FROM Pinturas p
-                    LEFT JOIN Artistas a ON a.id_artista = p.id_artista
-                    ORDER BY p.id_pintura
-                """
-                cursor.execute(sql)
-            else:
-                sql = """
-                    SELECT p.id_pintura, p.titulo, a.nombre AS artista,
-                           p.tecnica, p.precio, p.estado
-                    FROM Pinturas p
-                    LEFT JOIN Artistas a ON a.id_artista = p.id_artista
-                    WHERE p.estado = ?
-                    ORDER BY p.id_pintura
-                """
-                cursor.execute(sql, (estado,))
+            sql = """
+                SELECT p.id_pintura, p.titulo,
+                       ISNULL(a.nombre, '') AS artista,
+                       ISNULL(t.nombre, '') AS tecnica,
+                       p.precio,
+                       ISNULL(i.cantidad, 0) AS stock
+                FROM Pinturas p
+                LEFT JOIN Artistas a ON a.id_artista = p.id_artista
+                LEFT JOIN Tecnicas t ON t.id_tecnica = p.id_tecnica
+                LEFT JOIN Inventario i ON i.id_pintura = p.id_pintura
+                ORDER BY p.id_pintura
+            """
+            cursor.execute(sql)
 
             filas = cursor.fetchall()
             self._datos = filas
 
             self.tabla.setRowCount(0)
-            cnt_disponibles = 0
-            cnt_vendidas = 0
+            total_stock = 0
             for fila in filas:
                 row = self.tabla.rowCount()
                 self.tabla.insertRow(row)
-                estado_val = str(fila.estado or "")
-                if estado_val.lower() == "disponible":
-                    cnt_disponibles += 1
-                elif estado_val.lower() == "vendido":
-                    cnt_vendidas += 1
+                stock_val = int(fila.stock or 0)
+                total_stock += stock_val
 
                 valores = [
                     fila.id_pintura,
@@ -914,7 +893,7 @@ class VentanaReporteInventario(QMainWindow):
                     fila.artista or "",
                     fila.tecnica or "",
                     _fmt_money(fila.precio),
-                    estado_val,
+                    stock_val,
                 ]
                 aligns = [
                     Qt.AlignRight | Qt.AlignVCenter,
@@ -922,30 +901,27 @@ class VentanaReporteInventario(QMainWindow):
                     Qt.AlignLeft | Qt.AlignVCenter,
                     Qt.AlignLeft | Qt.AlignVCenter,
                     Qt.AlignRight | Qt.AlignVCenter,
-                    Qt.AlignLeft | Qt.AlignVCenter,
+                    Qt.AlignRight | Qt.AlignVCenter,
                 ]
                 for col, (valor, align) in enumerate(zip(valores, aligns)):
                     self.tabla.setItem(row, col, _tabla_item(valor, align))
 
             self.lbl_total_pinturas.setText(f"Total: {len(filas)}")
-            self.lbl_disponibles.setText(f"Disponibles: {cnt_disponibles}")
-            self.lbl_vendidas.setText(f"Vendidas: {cnt_vendidas}")
+            self.lbl_total_stock.setText(f"Total en stock: {total_stock}")
             self.btn_pdf.setEnabled(bool(filas))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar los datos:\n{e}")
 
     def exportar_pdf(self):
-        estado = self.combo_estado.currentText()
         _guardar_pdf(
             self,
             "Reporte Inventario",
-            f"inventario_{estado.lower()}.pdf",
-            self._armar_html(estado),
+            "inventario.pdf",
+            self._armar_html(),
         )
 
-    def _armar_html(self, estado):
-        cnt_disp = sum(1 for d in self._datos if str(d.estado or "").lower() == "disponible")
-        cnt_vend = sum(1 for d in self._datos if str(d.estado or "").lower() == "vendido")
+    def _armar_html(self):
+        total_stock = sum(int(d.stock or 0) for d in self._datos)
         filas_html = ""
         for d in self._datos:
             filas_html += f"""
@@ -955,7 +931,7 @@ class VentanaReporteInventario(QMainWindow):
                     <td class="txt">{escape(str(d.artista or ""))}</td>
                     <td class="txt">{escape(str(d.tecnica or ""))}</td>
                     <td class="num">{escape(_fmt_money(d.precio))}</td>
-                    <td class="txt">{escape(str(d.estado or ""))}</td>
+                    <td class="num">{escape(str(int(d.stock or 0)))}</td>
                 </tr>"""
         return f"""
         <html><head><style>{_PDF_CSS}</style></head><body>
@@ -963,7 +939,6 @@ class VentanaReporteInventario(QMainWindow):
             <div class="header">
                 <div class="brand">GALERÍA DE ARTE</div>
                 <div class="title">INVENTARIO DE PINTURAS</div>
-                <div class="sub">Filtro: {escape(estado)}</div>
             </div>
             <div class="line"></div>
             <table class="items">
@@ -974,7 +949,7 @@ class VentanaReporteInventario(QMainWindow):
                         <th style="width:20%;">Artista</th>
                         <th style="width:18%;">Técnica</th>
                         <th style="width:14%; text-align:right;">Precio</th>
-                        <th style="width:14%;">Estado</th>
+                        <th style="width:14%; text-align:right;">Stock</th>
                     </tr>
                 </thead>
                 <tbody>{filas_html}</tbody>
@@ -985,12 +960,8 @@ class VentanaReporteInventario(QMainWindow):
                     <td class="value">{len(self._datos)}</td>
                 </tr>
                 <tr>
-                    <td class="label">DISPONIBLES:</td>
-                    <td class="value">{cnt_disp}</td>
-                </tr>
-                <tr>
-                    <td class="label">VENDIDAS:</td>
-                    <td class="value">{cnt_vend}</td>
+                    <td class="label">TOTAL EN STOCK:</td>
+                    <td class="value">{total_stock}</td>
                 </tr>
             </table>
             <div class="footer">Reporte generado por Sistema Galería de Arte</div>
@@ -1152,10 +1123,11 @@ class VentanaReporteComprasPorProveedor(QMainWindow):
             cursor = self.conexion.cursor()
             sql = """
                 SELECT pr.nombre AS proveedor,
-                       COUNT(c.id_compra) AS num_compras,
-                       SUM(c.total) AS total_gastado
+                       COUNT(DISTINCT c.id_compra) AS num_compras,
+                       ISNULL(SUM(dc.cantidad * dc.precio), 0) AS total_gastado
                 FROM Compras c
                 LEFT JOIN Proveedores pr ON pr.id_proveedor = c.id_proveedor
+                LEFT JOIN DetalleCompra dc ON dc.id_compra = c.id_compra
                 WHERE CAST(c.fecha AS date) BETWEEN ? AND ?
                 GROUP BY pr.nombre
                 ORDER BY total_gastado DESC
@@ -1204,11 +1176,14 @@ class VentanaReporteComprasPorProveedor(QMainWindow):
         try:
             cursor = self.conexion.cursor()
             sql = """
-                SELECT c.id_compra, c.fecha, c.total
+                SELECT c.id_compra, c.fecha,
+                       ISNULL(SUM(dc.cantidad * dc.precio), 0) AS total
                 FROM Compras c
                 LEFT JOIN Proveedores pr ON pr.id_proveedor = c.id_proveedor
+                LEFT JOIN DetalleCompra dc ON dc.id_compra = c.id_compra
                 WHERE pr.nombre = ?
                   AND CAST(c.fecha AS date) BETWEEN ? AND ?
+                GROUP BY c.id_compra, c.fecha
                 ORDER BY c.fecha DESC
             """
             cursor.execute(sql, (
