@@ -520,8 +520,8 @@ class NotaVentasVentana(QMainWindow):
         venta = self.venta_actual
         html = self._armar_html_carta(venta, self.detalles_actuales)
 
-        dpi = 300
-        margin_mm = 8
+        dpi = 96
+        margin_mm = 15
 
         writer = QPdfWriter(ruta_pdf)
         writer.setResolution(dpi)
