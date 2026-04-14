@@ -34,15 +34,6 @@ def _fmt_fecha(valor):
         return str(valor)
 
 
-def _fmt_fecha_corta(valor):
-    if valor is None:
-        return "-"
-    try:
-        return valor.strftime("%Y-%m-%d")
-    except Exception:
-        return str(valor)
-
-
 def _fmt_money(valor):
     try:
         return f"${float(valor):,.2f}"
@@ -205,6 +196,9 @@ _PDF_CSS = """
     .summary .value { width: 18%; text-align: right; font-size: 13pt; font-weight: bold; white-space: nowrap; }
     .footer { margin-top: 22px; text-align: center; font-size: 9pt; color: #5B5B5B; }
 """
+
+
+_IVA_RATE = 0.16
 
 
 def _guardar_pdf(ventana, titulo_doc, nombre_sugerido, html):
@@ -2122,8 +2116,7 @@ class VentanaReporteFacturas(QMainWindow):
 
     def _armar_html_factura(self, venta, detalles):
         total_bruto = float(getattr(venta, "total", 0) or 0)
-        iva_rate = 0.16
-        subtotal_sin_iva = total_bruto / (1 + iva_rate)
+        subtotal_sin_iva = total_bruto / (1 + _IVA_RATE)
         iva = total_bruto - subtotal_sin_iva
 
         filas_html = ""
@@ -2188,7 +2181,7 @@ class VentanaReporteFacturas(QMainWindow):
                     <td class="value" style="font-size:11pt;">{escape(_fmt_money(subtotal_sin_iva))}</td>
                 </tr>
                 <tr>
-                    <td class="label" style="font-size:11pt; font-weight:normal;">IVA (16%):</td>
+                    <td class="label" style="font-size:11pt; font-weight:normal;">IVA ({int(_IVA_RATE * 100)}%):</td>
                     <td class="value" style="font-size:11pt;">{escape(_fmt_money(iva))}</td>
                 </tr>
                 <tr>
