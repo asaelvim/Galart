@@ -70,7 +70,7 @@ class VentanaPrincipal(QMainWindow):
             btn_config = QPushButton("⚙")
             btn_config.setCursor(Qt.PointingHandCursor)
             btn_config.setFixedSize(36, 36)
-            btn_config.setFont(QFont("Segoe UI", 14, QFont.Weight.DemiBold))
+            btn_config.setFont(QFont("Segoe UI", 20, QFont.Weight.DemiBold))
             btn_config.setStyleSheet(f"""
                 QPushButton {{
                     background: transparent;
