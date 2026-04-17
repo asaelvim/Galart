@@ -33,6 +33,7 @@ class VentanaPrincipal(QMainWindow):
         self.ventana_ventas = None
         self.ventana_compras = None
         self.ventana_reportes = None
+        self.ventana_usuarios = None
 
         cursor = self.conexion.cursor()
         cursor.execute("SELECT DB_NAME()")
@@ -62,6 +63,27 @@ class VentanaPrincipal(QMainWindow):
         content = QVBoxLayout(card)
         content.setContentsMargins(42, 36, 42, 30)
         content.setSpacing(14)
+
+        row_config = QHBoxLayout()
+        row_config.addStretch(1)
+        if self._es_admin():
+            btn_config = QPushButton("⚙")
+            btn_config.setCursor(Qt.PointingHandCursor)
+            btn_config.setFixedSize(36, 36)
+            btn_config.setFont(QFont("Segoe UI", 14, QFont.Weight.DemiBold))
+            btn_config.setStyleSheet(f"""
+                QPushButton {{
+                    background: transparent;
+                    color: {DESACTIVADO};
+                    border: none;
+                }}
+                QPushButton:hover {{
+                    color: {ACENTO};
+                }}
+            """)
+            btn_config.clicked.connect(self.abrir_usuarios)
+            row_config.addWidget(btn_config)
+        content.addLayout(row_config)
 
         lbl_title = QLabel("Galería de Arte")
         lbl_title.setAlignment(Qt.AlignHCenter)
@@ -240,6 +262,15 @@ class VentanaPrincipal(QMainWindow):
         self.ventana_reportes.raise_()
         self.ventana_reportes.activateWindow()
 
+    def abrir_usuarios(self):
+        from ventanas.Usuarios import UsuariosVentana
+        if self.ventana_usuarios is None:
+            self.ventana_usuarios = UsuariosVentana(self)
+        self.hide()
+        self.ventana_usuarios.show()
+        self.ventana_usuarios.raise_()
+        self.ventana_usuarios.activateWindow()
+
     def _texto_sesion(self) -> str:
         if not self.usuario_actual:
             return "Sesión: invitado"
@@ -247,6 +278,12 @@ class VentanaPrincipal(QMainWindow):
         usuario = self.usuario_actual.get("usuario", "")
         tipo = self.usuario_actual.get("tipo_nombre", "")
         return f"Sesión: {nombre} ({usuario}) - {tipo}"
+
+    def _es_admin(self) -> bool:
+        if not self.usuario_actual:
+            return False
+        tipo = self.usuario_actual.get("tipo_nombre", "") or ""
+        return tipo.strip().lower() == "administrador"
     def showEvent(self, event):
         if hasattr(self, "lbl_sesion"):
             self.lbl_sesion.setText(self._texto_sesion())
