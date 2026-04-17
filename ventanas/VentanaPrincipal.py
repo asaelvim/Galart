@@ -62,7 +62,7 @@ class VentanaPrincipal(QMainWindow):
 
         content = QVBoxLayout(card)
         content.setContentsMargins(42, 36, 42, 30)
-        content.setSpacing(14)
+        content.setSpacing(10)
 
         row_config = QHBoxLayout()
         row_config.addStretch(1)
