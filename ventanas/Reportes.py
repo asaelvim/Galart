@@ -182,16 +182,16 @@ _PDF_CSS = """
     .info .value { width: 36%; }
     .items thead th {
         text-align: left; font-size: 10pt;
-        border-bottom: 1px solid #1F1F1F; padding: 8px 0 6px 0;
+        border-bottom: 1px solid #1F1F1F; padding: 8px 8px 6px 8px;
     }
     .items td {
         border-bottom: 1px dotted #DED6CC;
-        padding: 8px 0; vertical-align: top; word-wrap: break-word;
+        padding: 8px 8px; vertical-align: top; word-wrap: break-word;
     }
     .txt { word-break: break-word; }
     .num { text-align: right; white-space: nowrap; }
     .summary { margin-top: 16px; width: 100%; border-collapse: collapse; }
-    .summary td { padding: 4px 0; }
+    .summary td { padding: 4px 8px; }
     .summary .label { width: 82%; text-align: right; font-weight: bold; font-size: 12pt; }
     .summary .value { width: 18%; text-align: right; font-size: 13pt; font-weight: bold; white-space: nowrap; }
     .footer { margin-top: 22px; text-align: center; font-size: 9pt; color: #5B5B5B; }
