@@ -646,12 +646,12 @@ class NotaVentasVentana(QMainWindow):
                     text-align: left;
                     font-size: 10pt;
                     border-bottom: 1px solid #1F1F1F;
-                    padding: 8px 0 6px 0;
+                    padding: 8px 8px 6px 8px;
                 }}
 
                 .items td {{
                     border-bottom: 1px dotted #DED6CC;
-                    padding: 8px 0;
+                    padding: 8px 8px;
                     vertical-align: top;
                     word-wrap: break-word;
                 }}
@@ -672,7 +672,7 @@ class NotaVentasVentana(QMainWindow):
                 }}
 
                 .summary td {{
-                    padding: 4px 0;
+                    padding: 4px 8px;
                 }}
 
                 .summary .label {{
