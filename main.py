@@ -1,5 +1,4 @@
 import sys
-from datetime import date
 from PySide6.QtWidgets import QApplication, QMessageBox, QDialog
 from config.conexion import obtener_conexion
 from ventanas.Login import LoginVentana
@@ -19,17 +18,24 @@ if __name__ == "__main__":
         try:
             cursor = conexion.cursor()
             cursor.execute(
-                "SELECT COUNT(*) FROM AperturaCaja WHERE CAST(fecha AS DATE) = ?",
-                (date.today(),)
-            )
-            if cursor.fetchone()[0] == 0:
-                cursor.execute(
-                    "INSERT INTO AperturaCaja (monto, fecha) VALUES (?, GETDATE())",
-                    (0,)
+                """
+                INSERT INTO AperturaCaja (monto, fecha)
+                SELECT ?, GETDATE()
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM AperturaCaja
+                    WHERE CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
                 )
-                conexion.commit()
+                """,
+                (0,),
+            )
+            conexion.commit()
         except Exception as e:
-            QMessageBox.critical(None, "Error", f"No se pudo inicializar la apertura de caja:\n{e}")
+            QMessageBox.critical(
+                None,
+                "Error",
+                f"No se pudo inicializar la apertura de caja en la base de datos:\n{e}",
+            )
             sys.exit(1)
 
         w = VentanaPrincipal(conexion, login.usuario_actual)

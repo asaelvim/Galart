@@ -17,6 +17,9 @@ from ventanas.Reportes import (
 )
 
 
+MAX_OPENING_AMOUNT = 999999999.99
+
+
 def _fmt_fecha(valor):
     if valor is None:
         return "-"
@@ -154,29 +157,27 @@ class CorteCajaVentana(QMainWindow):
         cursor = self.conexion.cursor()
         cursor.execute(
             """
+            INSERT INTO AperturaCaja (monto, fecha)
+            SELECT ?, GETDATE()
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM AperturaCaja
+                WHERE CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
+            )
+            """,
+            (0,),
+        )
+        self.conexion.commit()
+
+        cursor.execute(
+            """
             SELECT TOP 1 id_apertura, monto, fecha
             FROM AperturaCaja
             WHERE CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
             ORDER BY id_apertura DESC
             """
         )
-        fila = cursor.fetchone()
-        if fila is None:
-            cursor.execute(
-                "INSERT INTO AperturaCaja (monto, fecha) VALUES (?, GETDATE())",
-                (0,)
-            )
-            self.conexion.commit()
-            cursor.execute(
-                """
-                SELECT TOP 1 id_apertura, monto, fecha
-                FROM AperturaCaja
-                WHERE CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
-                ORDER BY id_apertura DESC
-                """
-            )
-            fila = cursor.fetchone()
-        return fila
+        return cursor.fetchone()
 
     def recargar(self):
         try:
@@ -241,7 +242,7 @@ class CorteCajaVentana(QMainWindow):
             "Monto de apertura:",
             self._monto_apertura,
             0.0,
-            999999999.99,
+            MAX_OPENING_AMOUNT,
             2,
         )
         if not ok:
@@ -250,6 +251,13 @@ class CorteCajaVentana(QMainWindow):
             if self._id_apertura is None:
                 apertura = self._asegurar_apertura_hoy()
                 self._id_apertura = apertura.id_apertura if apertura else None
+            if self._id_apertura is None:
+                QMessageBox.warning(
+                    self,
+                    "Error",
+                    "No se pudo obtener un registro de apertura de caja para actualizar.",
+                )
+                return
             cursor = self.conexion.cursor()
             cursor.execute(
                 "UPDATE AperturaCaja SET monto = ? WHERE id_apertura = ?",
@@ -353,9 +361,23 @@ class CorteCajaVentana(QMainWindow):
         try:
             cursor = self.conexion.cursor()
             cursor.execute(
-                "INSERT INTO CierreCaja (montoTotal, fecha) VALUES (?, GETDATE())",
-                (self._total_general,)
+                """
+                INSERT INTO CierreCaja (montoTotal, fecha)
+                SELECT ?, GETDATE()
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM CierreCaja
+                    WHERE CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
+                );
+                SELECT @@ROWCOUNT;
+                """,
+                (self._total_general,),
             )
+            fila_rowcount = cursor.fetchone()
+            filas_insertadas = int(fila_rowcount[0]) if fila_rowcount else 0
+            if filas_insertadas == 0:
+                QMessageBox.warning(self, "Aviso", "Ya existe un cierre de caja registrado para hoy.")
+                return
             self.conexion.commit()
             QMessageBox.information(self, "Listo", "Cierre de caja registrado correctamente.")
             self.recargar()
