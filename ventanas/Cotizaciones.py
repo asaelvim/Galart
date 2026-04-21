@@ -1062,8 +1062,8 @@ class CotizacionesVentana(QMainWindow):
                 if self.current_id is None:
                     _exec(
                         cur,
-                        "INSERT INTO Cotizaciones (id_cliente, id_vendedor, fecha, subtotal, iva, total) "
-                        "VALUES (?, ?, ?, ?, ?, ?); SELECT SCOPE_IDENTITY()",
+                        "INSERT INTO Cotizaciones (id_cliente, id_vendedor, fecha, subtotal, iva, total, concretada) "
+                        "VALUES (?, ?, ?, ?, ?, ?, 0); SELECT SCOPE_IDENTITY()",
                         (id_cliente, id_vendedor, fecha, subtotal, iva, total),
                     )
                     cur.nextset()
