@@ -16,6 +16,7 @@ from ventanas.Cotizaciones import CotizacionesVentana
 from ventanas.Ventas import VentasVentana
 from ventanas.Compras import ComprasVentana
 from ventanas.Reportes import ReportesVentana
+from ventanas.CorteCaja import CorteCajaVentana
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self, conexion, usuario_actual=None):
@@ -33,6 +34,7 @@ class VentanaPrincipal(QMainWindow):
         self.ventana_ventas = None
         self.ventana_compras = None
         self.ventana_reportes = None
+        self.ventana_corte_caja = None
         self.ventana_usuarios = None
 
         cursor = self.conexion.cursor()
@@ -65,6 +67,22 @@ class VentanaPrincipal(QMainWindow):
         content.setSpacing(10)
 
         row_config = QHBoxLayout()
+        btn_corte_caja = QPushButton("💰")
+        btn_corte_caja.setCursor(Qt.PointingHandCursor)
+        btn_corte_caja.setFixedSize(36, 36)
+        btn_corte_caja.setFont(QFont("Segoe UI", 20, QFont.Weight.DemiBold))
+        btn_corte_caja.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {DESACTIVADO};
+                border: none;
+            }}
+            QPushButton:hover {{
+                color: {ACENTO};
+            }}
+        """)
+        btn_corte_caja.clicked.connect(self.abrir_corte_caja)
+        row_config.addWidget(btn_corte_caja)
         row_config.addStretch(1)
         if self._es_admin():
             btn_config = QPushButton("⚙")
@@ -261,6 +279,16 @@ class VentanaPrincipal(QMainWindow):
         self.ventana_reportes.show()
         self.ventana_reportes.raise_()
         self.ventana_reportes.activateWindow()
+
+    def abrir_corte_caja(self):
+        if self.ventana_corte_caja is None:
+            self.ventana_corte_caja = CorteCajaVentana(self.conexion, self)
+        else:
+            self.ventana_corte_caja.recargar()
+        self.hide()
+        self.ventana_corte_caja.show()
+        self.ventana_corte_caja.raise_()
+        self.ventana_corte_caja.activateWindow()
 
     def abrir_usuarios(self):
         from ventanas.Usuarios import UsuariosVentana
