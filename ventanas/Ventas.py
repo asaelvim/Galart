@@ -244,6 +244,7 @@ class CotizacionesImportRepo:
                 "c.fecha, c.total, c.id_cliente, c.id_vendedor "
                 "FROM Cotizaciones c "
                 "LEFT JOIN Clientes cl ON c.id_cliente = cl.id_cliente "
+                "WHERE ISNULL(c.concretada, 0) = 0 "
                 "ORDER BY c.id_cotizacion",
             )
             rows = cur.fetchall()
@@ -257,6 +258,16 @@ class CotizacionesImportRepo:
                 id_vendedor = int(r[5]) if r[5] is not None else 0
                 result.append((id_cotizacion, cliente, fecha, total, id_cliente, id_vendedor))
             return result
+
+    def marcar_concretada(self, cotizacion_id: int) -> None:
+        with db() as conn:
+            cur = conn.cursor()
+            _exec(
+                cur,
+                "UPDATE Cotizaciones SET concretada = 1 WHERE id_cotizacion = ?",
+                (cotizacion_id,),
+            )
+            conn.commit()
 
     def fetch_by_id(self, cotizacion_id: int) -> List[Tuple[int, str, str, str, int]]:
         with db() as conn:
@@ -410,6 +421,7 @@ class VentasVentana(QMainWindow):
         self.inventario_repo = InventarioRepo()
 
         self.current_id: Optional[int] = None
+        self._cotizacion_id_cargada: Optional[int] = None
         self._detail_lines: List[Tuple[int, str, str, int, float, float]] = []
 
         root = QWidget()
@@ -1139,6 +1151,7 @@ class VentasVentana(QMainWindow):
 
     def clear_form(self) -> None:
         self.current_id = None
+        self._cotizacion_id_cargada = None
 
         if self.cmbCliente.count() > 0:
             self.cmbCliente.setCurrentIndex(0)
@@ -1281,6 +1294,7 @@ class VentasVentana(QMainWindow):
                 if qd.isValid():
                     self.dateFecha.setDate(qd)
 
+            self._cotizacion_id_cargada = id_cotizacion
             self.current_id = None
             self.btnEliminar.setEnabled(False)
             self.btnGuardar.setEnabled(True)
@@ -1351,6 +1365,10 @@ class VentasVentana(QMainWindow):
                     self.inventario_repo.descontar_cursor(cur, id_pintura, cantidad)
 
                 conn.commit()
+
+            if self._cotizacion_id_cargada is not None:
+                self.cotizacion_repo.marcar_concretada(self._cotizacion_id_cargada)
+                self._cotizacion_id_cargada = None
 
             cambio = float(payment.get("cambio", 0.0) or 0.0)
             self.load_all()
