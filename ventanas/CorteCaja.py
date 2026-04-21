@@ -368,13 +368,11 @@ class CorteCajaVentana(QMainWindow):
                     SELECT 1
                     FROM CierreCaja
                     WHERE CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
-                );
-                SELECT @@ROWCOUNT;
+                )
                 """,
                 (self._total_general,),
             )
-            fila_rowcount = cursor.fetchone()
-            filas_insertadas = int(fila_rowcount[0]) if fila_rowcount else 0
+            filas_insertadas = cursor.rowcount
             if filas_insertadas == 0:
                 QMessageBox.warning(self, "Aviso", "Ya existe un cierre de caja registrado para hoy.")
                 return
