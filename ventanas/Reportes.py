@@ -1,3 +1,7 @@
+import os
+import subprocess
+import sys
+import tempfile
 from html import escape
 
 from PySide6.QtCore import Qt, QSize, QDate, QSizeF, QMarginsF
@@ -151,6 +155,29 @@ _BTN_PDF_STYLE = f"""
     }}
 """
 
+_BTN_PREVIEW_STYLE = f"""
+    QPushButton {{
+        background: {SUPERFICIE};
+        color: {PRIMARIO};
+        border: 1px solid {PRIMARIO};
+        border-radius: 10px;
+        padding: 8px 16px;
+    }}
+    QPushButton:hover {{
+        background: {PRIMARIO};
+        color: white;
+    }}
+    QPushButton:pressed {{
+        background: {ACENTO};
+        color: {TEXTO};
+    }}
+    QPushButton:disabled {{
+        background: {BORDE_BOTON};
+        color: {DESACTIVADO};
+        border: 1px solid {BORDE_BOTON};
+    }}
+"""
+
 _BTN_VOLVER_STYLE = f"""
     QPushButton {{
         background: transparent;
@@ -233,6 +260,50 @@ def _guardar_pdf(ventana, titulo_doc, nombre_sugerido, html):
         QMessageBox.information(ventana, "Listo", f"PDF generado correctamente:\n{ruta}")
     except Exception as e:
         QMessageBox.critical(ventana, "Error", f"No se pudo generar el PDF:\n{e}")
+
+
+def _vista_previa_pdf(ventana, titulo_doc, nombre_base, html):
+    """Guarda el PDF en un archivo temporal y lo abre con el visor predeterminado."""
+    try:
+        tmp = tempfile.NamedTemporaryFile(
+            suffix=".pdf",
+            prefix=nombre_base.replace(".pdf", "_") + "_preview_",
+            delete=False,
+        )
+        ruta = tmp.name
+        tmp.close()
+
+        dpi = 96
+        margin_mm = 15
+        writer = QPdfWriter(ruta)
+        writer.setResolution(dpi)
+        writer.setTitle(titulo_doc)
+        writer.setCreator("Sistema Galería de Arte")
+        writer.setPageSize(QPageSize(QPageSize.Letter))
+        writer.setPageMargins(
+            QMarginsF(margin_mm, margin_mm, margin_mm, margin_mm),
+            QPageLayout.Millimeter,
+        )
+        page_rect = writer.pageLayout().paintRectPixels(writer.resolution())
+        doc = QTextDocument()
+        doc.setDocumentMargin(0)
+        doc.setDefaultFont(QFont("DejaVu Sans", 11))
+        doc.setHtml(html)
+        doc.setTextWidth(page_rect.width())
+        doc.adjustSize()
+        painter = QPainter(writer)
+        painter.setRenderHint(QPainter.Antialiasing)
+        doc.drawContents(painter)
+        painter.end()
+
+        if sys.platform.startswith("win"):
+            os.startfile(ruta)
+        elif sys.platform.startswith("darwin"):
+            subprocess.Popen(["open", ruta])
+        else:
+            subprocess.Popen(["xdg-open", ruta])
+    except Exception as e:
+        QMessageBox.critical(ventana, "Error", f"No se pudo generar la vista previa:\n{e}")
 
 
 def _tabla_item(texto, align=Qt.AlignLeft | Qt.AlignVCenter):
@@ -372,6 +443,14 @@ class VentanaReporteVentasPeriodo(QMainWindow):
         self.btn_pdf.setEnabled(False)
         self.btn_pdf.clicked.connect(self.exportar_pdf)
 
+        self.btn_preview = QPushButton("Vista Previa")
+        self.btn_preview.setCursor(Qt.PointingHandCursor)
+        self.btn_preview.setFixedHeight(40)
+        self.btn_preview.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        self.btn_preview.setStyleSheet(_BTN_PREVIEW_STYLE)
+        self.btn_preview.setEnabled(False)
+        self.btn_preview.clicked.connect(self.vista_previa_pdf)
+
         btn_volver = QPushButton("Volver")
         btn_volver.setCursor(Qt.PointingHandCursor)
         btn_volver.setFixedHeight(40)
@@ -379,6 +458,8 @@ class VentanaReporteVentasPeriodo(QMainWindow):
         btn_volver.setStyleSheet(_BTN_VOLVER_STYLE)
         btn_volver.clicked.connect(self.regresar)
 
+        acciones.addWidget(self.btn_preview)
+        acciones.addSpacing(8)
         acciones.addWidget(self.btn_pdf)
         acciones.addSpacing(8)
         acciones.addWidget(btn_volver)
@@ -435,6 +516,7 @@ class VentanaReporteVentasPeriodo(QMainWindow):
 
             self.lbl_total.setText(f"Total del periodo: {_fmt_money(total)}")
             self.btn_pdf.setEnabled(bool(filas))
+            self.btn_preview.setEnabled(bool(filas))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar los datos:\n{e}")
 
@@ -442,6 +524,16 @@ class VentanaReporteVentasPeriodo(QMainWindow):
         desde = self.fecha_desde.date().toString("yyyy-MM-dd")
         hasta = self.fecha_hasta.date().toString("yyyy-MM-dd")
         _guardar_pdf(
+            self,
+            "Reporte Ventas por Periodo",
+            f"ventas_periodo_{desde}_{hasta}.pdf",
+            self._armar_html(desde, hasta),
+        )
+
+    def vista_previa_pdf(self):
+        desde = self.fecha_desde.date().toString("yyyy-MM-dd")
+        hasta = self.fecha_hasta.date().toString("yyyy-MM-dd")
+        _vista_previa_pdf(
             self,
             "Reporte Ventas por Periodo",
             f"ventas_periodo_{desde}_{hasta}.pdf",
@@ -616,6 +708,14 @@ class VentanaReportePinturasPopulares(QMainWindow):
         self.btn_pdf.setEnabled(False)
         self.btn_pdf.clicked.connect(self.exportar_pdf)
 
+        self.btn_preview = QPushButton("Vista Previa")
+        self.btn_preview.setCursor(Qt.PointingHandCursor)
+        self.btn_preview.setFixedHeight(40)
+        self.btn_preview.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        self.btn_preview.setStyleSheet(_BTN_PREVIEW_STYLE)
+        self.btn_preview.setEnabled(False)
+        self.btn_preview.clicked.connect(self.vista_previa_pdf)
+
         btn_volver = QPushButton("Volver")
         btn_volver.setCursor(Qt.PointingHandCursor)
         btn_volver.setFixedHeight(40)
@@ -623,6 +723,8 @@ class VentanaReportePinturasPopulares(QMainWindow):
         btn_volver.setStyleSheet(_BTN_VOLVER_STYLE)
         btn_volver.clicked.connect(self.regresar)
 
+        acciones.addWidget(self.btn_preview)
+        acciones.addSpacing(8)
         acciones.addWidget(self.btn_pdf)
         acciones.addSpacing(8)
         acciones.addWidget(btn_volver)
@@ -676,6 +778,7 @@ class VentanaReportePinturasPopulares(QMainWindow):
                     self.tabla.setItem(row, col, _tabla_item(valor, align))
 
             self.btn_pdf.setEnabled(bool(filas))
+            self.btn_preview.setEnabled(bool(filas))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar los datos:\n{e}")
 
@@ -683,6 +786,16 @@ class VentanaReportePinturasPopulares(QMainWindow):
         desde = self.fecha_desde.date().toString("yyyy-MM-dd")
         hasta = self.fecha_hasta.date().toString("yyyy-MM-dd")
         _guardar_pdf(
+            self,
+            "Reporte Pinturas Populares",
+            f"pinturas_populares_{desde}_{hasta}.pdf",
+            self._armar_html(desde, hasta),
+        )
+
+    def vista_previa_pdf(self):
+        desde = self.fecha_desde.date().toString("yyyy-MM-dd")
+        hasta = self.fecha_hasta.date().toString("yyyy-MM-dd")
+        _vista_previa_pdf(
             self,
             "Reporte Pinturas Populares",
             f"pinturas_populares_{desde}_{hasta}.pdf",
@@ -845,6 +958,14 @@ class VentanaReporteInventario(QMainWindow):
         self.btn_pdf.setEnabled(False)
         self.btn_pdf.clicked.connect(self.exportar_pdf)
 
+        self.btn_preview = QPushButton("Vista Previa")
+        self.btn_preview.setCursor(Qt.PointingHandCursor)
+        self.btn_preview.setFixedHeight(40)
+        self.btn_preview.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        self.btn_preview.setStyleSheet(_BTN_PREVIEW_STYLE)
+        self.btn_preview.setEnabled(False)
+        self.btn_preview.clicked.connect(self.vista_previa_pdf)
+
         btn_volver = QPushButton("Volver")
         btn_volver.setCursor(Qt.PointingHandCursor)
         btn_volver.setFixedHeight(40)
@@ -852,6 +973,8 @@ class VentanaReporteInventario(QMainWindow):
         btn_volver.setStyleSheet(_BTN_VOLVER_STYLE)
         btn_volver.clicked.connect(self.regresar)
 
+        acciones.addWidget(self.btn_preview)
+        acciones.addSpacing(8)
         acciones.addWidget(self.btn_pdf)
         acciones.addSpacing(8)
         acciones.addWidget(btn_volver)
@@ -909,11 +1032,20 @@ class VentanaReporteInventario(QMainWindow):
             self.lbl_total_pinturas.setText(f"Total: {len(filas)}")
             self.lbl_total_stock.setText(f"Total en stock: {total_stock}")
             self.btn_pdf.setEnabled(bool(filas))
+            self.btn_preview.setEnabled(bool(filas))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar los datos:\n{e}")
 
     def exportar_pdf(self):
         _guardar_pdf(
+            self,
+            "Reporte Inventario",
+            "inventario.pdf",
+            self._armar_html(),
+        )
+
+    def vista_previa_pdf(self):
+        _vista_previa_pdf(
             self,
             "Reporte Inventario",
             "inventario.pdf",
@@ -1104,6 +1236,14 @@ class VentanaReporteComprasPorProveedor(QMainWindow):
         self.btn_pdf.setEnabled(False)
         self.btn_pdf.clicked.connect(self.exportar_pdf)
 
+        self.btn_preview = QPushButton("Vista Previa")
+        self.btn_preview.setCursor(Qt.PointingHandCursor)
+        self.btn_preview.setFixedHeight(40)
+        self.btn_preview.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        self.btn_preview.setStyleSheet(_BTN_PREVIEW_STYLE)
+        self.btn_preview.setEnabled(False)
+        self.btn_preview.clicked.connect(self.vista_previa_pdf)
+
         btn_volver = QPushButton("Volver")
         btn_volver.setCursor(Qt.PointingHandCursor)
         btn_volver.setFixedHeight(40)
@@ -1111,6 +1251,8 @@ class VentanaReporteComprasPorProveedor(QMainWindow):
         btn_volver.setStyleSheet(_BTN_VOLVER_STYLE)
         btn_volver.clicked.connect(self.regresar)
 
+        acciones.addWidget(self.btn_preview)
+        acciones.addSpacing(8)
         acciones.addWidget(self.btn_pdf)
         acciones.addSpacing(8)
         acciones.addWidget(btn_volver)
@@ -1161,6 +1303,7 @@ class VentanaReporteComprasPorProveedor(QMainWindow):
                 self.tabla.selectRow(0)
 
             self.btn_pdf.setEnabled(bool(filas))
+            self.btn_preview.setEnabled(bool(filas))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar los datos:\n{e}")
 
@@ -1215,6 +1358,16 @@ class VentanaReporteComprasPorProveedor(QMainWindow):
         desde = self.fecha_desde.date().toString("yyyy-MM-dd")
         hasta = self.fecha_hasta.date().toString("yyyy-MM-dd")
         _guardar_pdf(
+            self,
+            "Reporte Compras por Proveedor",
+            f"compras_proveedor_{desde}_{hasta}.pdf",
+            self._armar_html(desde, hasta),
+        )
+
+    def vista_previa_pdf(self):
+        desde = self.fecha_desde.date().toString("yyyy-MM-dd")
+        hasta = self.fecha_hasta.date().toString("yyyy-MM-dd")
+        _vista_previa_pdf(
             self,
             "Reporte Compras por Proveedor",
             f"compras_proveedor_{desde}_{hasta}.pdf",
@@ -1396,6 +1549,14 @@ class VentanaReporteVentasPorCliente(QMainWindow):
         self.btn_pdf.setEnabled(False)
         self.btn_pdf.clicked.connect(self.exportar_pdf)
 
+        self.btn_preview = QPushButton("Vista Previa")
+        self.btn_preview.setCursor(Qt.PointingHandCursor)
+        self.btn_preview.setFixedHeight(40)
+        self.btn_preview.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        self.btn_preview.setStyleSheet(_BTN_PREVIEW_STYLE)
+        self.btn_preview.setEnabled(False)
+        self.btn_preview.clicked.connect(self.vista_previa_pdf)
+
         btn_volver = QPushButton("Volver")
         btn_volver.setCursor(Qt.PointingHandCursor)
         btn_volver.setFixedHeight(40)
@@ -1403,6 +1564,8 @@ class VentanaReporteVentasPorCliente(QMainWindow):
         btn_volver.setStyleSheet(_BTN_VOLVER_STYLE)
         btn_volver.clicked.connect(self.regresar)
 
+        acciones.addWidget(self.btn_preview)
+        acciones.addSpacing(8)
         acciones.addWidget(self.btn_pdf)
         acciones.addSpacing(8)
         acciones.addWidget(btn_volver)
@@ -1452,6 +1615,7 @@ class VentanaReporteVentasPorCliente(QMainWindow):
                 self.tabla.selectRow(0)
 
             self.btn_pdf.setEnabled(bool(filas))
+            self.btn_preview.setEnabled(bool(filas))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar los datos:\n{e}")
 
@@ -1505,6 +1669,16 @@ class VentanaReporteVentasPorCliente(QMainWindow):
         desde = self.fecha_desde.date().toString("yyyy-MM-dd")
         hasta = self.fecha_hasta.date().toString("yyyy-MM-dd")
         _guardar_pdf(
+            self,
+            "Reporte Ventas por Cliente",
+            f"ventas_cliente_{desde}_{hasta}.pdf",
+            self._armar_html(desde, hasta),
+        )
+
+    def vista_previa_pdf(self):
+        desde = self.fecha_desde.date().toString("yyyy-MM-dd")
+        hasta = self.fecha_hasta.date().toString("yyyy-MM-dd")
+        _vista_previa_pdf(
             self,
             "Reporte Ventas por Cliente",
             f"ventas_cliente_{desde}_{hasta}.pdf",
@@ -1658,6 +1832,14 @@ class VentanaReporteVentasPorMes(QMainWindow):
         self.btn_pdf.setEnabled(False)
         self.btn_pdf.clicked.connect(self.exportar_pdf)
 
+        self.btn_preview = QPushButton("Vista Previa")
+        self.btn_preview.setCursor(Qt.PointingHandCursor)
+        self.btn_preview.setFixedHeight(40)
+        self.btn_preview.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        self.btn_preview.setStyleSheet(_BTN_PREVIEW_STYLE)
+        self.btn_preview.setEnabled(False)
+        self.btn_preview.clicked.connect(self.vista_previa_pdf)
+
         btn_volver = QPushButton("Volver")
         btn_volver.setCursor(Qt.PointingHandCursor)
         btn_volver.setFixedHeight(40)
@@ -1665,6 +1847,8 @@ class VentanaReporteVentasPorMes(QMainWindow):
         btn_volver.setStyleSheet(_BTN_VOLVER_STYLE)
         btn_volver.clicked.connect(self.regresar)
 
+        acciones.addWidget(self.btn_preview)
+        acciones.addSpacing(8)
         acciones.addWidget(self.btn_pdf)
         acciones.addSpacing(8)
         acciones.addWidget(btn_volver)
@@ -1708,12 +1892,22 @@ class VentanaReporteVentasPorMes(QMainWindow):
                     self.tabla.setItem(row, col, _tabla_item(valor, align))
 
             self.btn_pdf.setEnabled(bool(filas))
+            self.btn_preview.setEnabled(bool(filas))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar los datos:\n{e}")
 
     def exportar_pdf(self):
         anio = self.spin_anio.value()
         _guardar_pdf(
+            self,
+            f"Reporte Ventas por Mes {anio}",
+            f"ventas_mes_{anio}.pdf",
+            self._armar_html(anio),
+        )
+
+    def vista_previa_pdf(self):
+        anio = self.spin_anio.value()
+        _vista_previa_pdf(
             self,
             f"Reporte Ventas por Mes {anio}",
             f"ventas_mes_{anio}.pdf",
@@ -1926,6 +2120,14 @@ class VentanaReporteFacturas(QMainWindow):
         self.btn_pdf.setEnabled(False)
         self.btn_pdf.clicked.connect(self.exportar_pdf)
 
+        self.btn_preview = QPushButton("Vista Previa")
+        self.btn_preview.setCursor(Qt.PointingHandCursor)
+        self.btn_preview.setFixedHeight(40)
+        self.btn_preview.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        self.btn_preview.setStyleSheet(_BTN_PREVIEW_STYLE)
+        self.btn_preview.setEnabled(False)
+        self.btn_preview.clicked.connect(self.vista_previa_pdf)
+
         btn_volver = QPushButton("Volver")
         btn_volver.setCursor(Qt.PointingHandCursor)
         btn_volver.setFixedHeight(40)
@@ -1933,6 +2135,8 @@ class VentanaReporteFacturas(QMainWindow):
         btn_volver.setStyleSheet(_BTN_VOLVER_STYLE)
         btn_volver.clicked.connect(self.regresar)
 
+        acciones.addWidget(self.btn_preview)
+        acciones.addSpacing(8)
         acciones.addWidget(self.btn_pdf)
         acciones.addSpacing(8)
         acciones.addWidget(btn_volver)
@@ -1963,6 +2167,7 @@ class VentanaReporteFacturas(QMainWindow):
             self.detalles_actuales = []
             self.tabla_detalle.setRowCount(0)
             self.btn_pdf.setEnabled(False)
+            self.btn_preview.setEnabled(False)
 
             for fila in filas:
                 row = self.tabla_ventas.rowCount()
@@ -2063,6 +2268,7 @@ class VentanaReporteFacturas(QMainWindow):
                     self.tabla_detalle.setItem(row, col, _tabla_item(valor, align))
 
             self.btn_pdf.setEnabled(True)
+            self.btn_preview.setEnabled(True)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo cargar el detalle:\n{e}")
 
@@ -2076,6 +2282,7 @@ class VentanaReporteFacturas(QMainWindow):
         self.lbl_total.setText("Total: -")
         self.tabla_detalle.setRowCount(0)
         self.btn_pdf.setEnabled(False)
+        self.btn_preview.setEnabled(False)
 
     def exportar_pdf(self):
         if not self.venta_actual:
@@ -2086,6 +2293,17 @@ class VentanaReporteFacturas(QMainWindow):
             self,
             f"Factura #{self.venta_actual.id_venta}",
             nombre_sugerido,
+            self._armar_html_factura(self.venta_actual, self.detalles_actuales),
+        )
+
+    def vista_previa_pdf(self):
+        if not self.venta_actual:
+            QMessageBox.information(self, "Sin selección", "Selecciona una venta primero.")
+            return
+        _vista_previa_pdf(
+            self,
+            f"Factura #{self.venta_actual.id_venta}",
+            f"factura_{self.venta_actual.id_venta}.pdf",
             self._armar_html_factura(self.venta_actual, self.detalles_actuales),
         )
 
