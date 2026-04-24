@@ -444,6 +444,15 @@ class VentasVentana(QMainWindow):
         title.setObjectName("Title")
         card_layout.addWidget(title)
 
+        self._lbl_caja_cerrada = QLabel("🔒 Caja cerrada — no se pueden registrar ventas hoy.")
+        self._lbl_caja_cerrada.setAlignment(Qt.AlignHCenter)
+        self._lbl_caja_cerrada.setStyleSheet(
+            "color: #B45309; background: #FEF3C7; border: 1px solid #F59E0B;"
+            " border-radius: 8px; padding: 6px 12px; font-weight: 600;"
+        )
+        self._lbl_caja_cerrada.setVisible(False)
+        card_layout.addWidget(self._lbl_caja_cerrada)
+
         row_cliente = QHBoxLayout()
         row_cliente.setSpacing(12)
         row_cliente.addStretch(1)
@@ -698,6 +707,7 @@ class VentasVentana(QMainWindow):
         self._load_pinturas_combo(None)
         self._load_cotizaciones_combo()
         self.load_all()
+        self._actualizar_estado_caja()
 
     def closeEvent(self, event):
         if self.ventana_principal is not None:
@@ -707,6 +717,7 @@ class VentasVentana(QMainWindow):
     def showEvent(self, event):
         super().showEvent(event)
         self.actualizar_selects()
+        self._actualizar_estado_caja()
 
     def actualizar_selects(self) -> None:
         cliente_actual = self.cmbCliente.currentData()
@@ -931,6 +942,34 @@ class VentasVentana(QMainWindow):
 
     def _show_error(self, title: str, msg: str) -> None:
         QMessageBox.critical(self, title, msg)
+
+    def _caja_cerrada_hoy(self) -> bool:
+        try:
+            with db() as conn:
+                cur = conn.cursor()
+                _exec(
+                    cur,
+                    "SELECT COUNT(1) FROM CierreCaja "
+                    "WHERE CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)",
+                )
+                row = cur.fetchone()
+                return bool(row and row[0])
+        except Exception:
+            return False
+
+    def _actualizar_estado_caja(self) -> None:
+        cerrada = self._caja_cerrada_hoy()
+        self.btnGuardar.setEnabled(not cerrada)
+        if cerrada:
+            self.btnEliminar.setEnabled(False)
+        self.btnAgregarLinea.setEnabled(not cerrada)
+        self.btnImportarCotizacion.setEnabled(not cerrada)
+        tooltip = "La caja está cerrada. No se pueden registrar ventas hoy." if cerrada else ""
+        self.btnGuardar.setToolTip(tooltip)
+        self.btnEliminar.setToolTip(tooltip)
+        self.btnAgregarLinea.setToolTip(tooltip)
+        self.btnImportarCotizacion.setToolTip(tooltip)
+        self._lbl_caja_cerrada.setVisible(cerrada)
 
     def _load_clientes_combo(self) -> None:
         self.cmbCliente.clear()
@@ -1179,6 +1218,7 @@ class VentasVentana(QMainWindow):
         self.txtBuscarID.clear()
         self.txtBuscarDetalle.clear()
         self.cmbBuscarDetalle.setCurrentIndex(0)
+        self._actualizar_estado_caja()
 
     def load_all(self) -> None:
         try:
@@ -1515,6 +1555,7 @@ class VentasVentana(QMainWindow):
             self._refresh_detail_table()
             self.btnEliminar.setEnabled(True)
             self.btnGuardar.setEnabled(False)
+            self._actualizar_estado_caja()
 
         except Exception as e:
             self._show_error("Error BD", str(e))
