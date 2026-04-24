@@ -61,8 +61,14 @@ def _armar_html_corte(
     ef_declarado: float,
     tj_declarada: float,
     filas_ventas=None,
+    ef_desglose=None,
+    vouchers=None,
 ) -> str:
-    """Genera HTML para el PDF de un corte de caja individual."""
+    """Genera HTML para el PDF de un corte de caja individual.
+
+    ef_desglose: dict {denominacion: cantidad} con el desglose de efectivo declarado.
+    vouchers: lista de [no_voucher, monto] con los vouchers de tarjeta declarados.
+    """
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
     filas_html = ""
     if filas_ventas:
@@ -88,6 +94,70 @@ def _armar_html_corte(
         "</table>"
         if filas_ventas else ""
     )
+
+    # ── Tabla de desglose de efectivo por denominación ──────────────────────
+    tabla_ef_desglose = ""
+    if ef_desglose:
+        filas_denom = ""
+        for denom in DENOMINACIONES:
+            qty = ef_desglose.get(denom, 0)
+            if qty > 0:
+                subtotal = denom * qty
+                filas_denom += (
+                    "<tr>"
+                    f'<td class="num">${denom:,}</td>'
+                    f'<td class="num">{qty}</td>'
+                    f'<td class="num">{escape(_fmt_money(subtotal))}</td>'
+                    "</tr>"
+                )
+        if filas_denom:
+            tabla_ef_desglose = (
+                '<div class="line"></div>'
+                '<p style="font-weight:bold;margin:6px 0 4px;">'
+                "Desglose de Efectivo Declarado</p>"
+                '<table class="items">'
+                "<thead><tr>"
+                '<th style="width:33%;text-align:right;">Denominaci\xf3n</th>'
+                '<th style="width:33%;text-align:right;">Cantidad</th>'
+                '<th style="width:33%;text-align:right;">Subtotal</th>'
+                "</tr></thead>"
+                f"<tbody>{filas_denom}</tbody>"
+                "<tfoot><tr>"
+                '<td class="num" colspan="2" style="font-weight:bold;">Total Efectivo Declarado</td>'
+                f'<td class="num" style="font-weight:bold;">{escape(_fmt_money(ef_declarado))}</td>'
+                "</tr></tfoot>"
+                "</table>"
+            )
+
+    # ── Tabla de vouchers de tarjeta ─────────────────────────────────────────
+    tabla_vouchers_html = ""
+    if vouchers:
+        filas_vou = ""
+        for no_vou, monto in vouchers:
+            filas_vou += (
+                "<tr>"
+                f'<td class="txt">{escape(str(no_vou))}</td>'
+                f'<td class="num">{escape(_fmt_money(monto))}</td>'
+                "</tr>"
+            )
+        if filas_vou:
+            tabla_vouchers_html = (
+                '<div class="line"></div>'
+                '<p style="font-weight:bold;margin:6px 0 4px;">'
+                "Vouchers de Tarjeta</p>"
+                '<table class="items">'
+                "<thead><tr>"
+                '<th style="width:60%;">No. Voucher</th>'
+                '<th style="width:40%;text-align:right;">Monto</th>'
+                "</tr></thead>"
+                f"<tbody>{filas_vou}</tbody>"
+                "<tfoot><tr>"
+                '<td class="txt" style="font-weight:bold;">Total Tarjeta Declarada</td>'
+                f'<td class="num" style="font-weight:bold;">{escape(_fmt_money(tj_declarada))}</td>'
+                "</tr></tfoot>"
+                "</table>"
+            )
+
     return (
         f"<html><head><style>{_PDF_CSS}</style></head><body>"
         '<div class="page">'
@@ -108,6 +178,8 @@ def _armar_html_corte(
         "</tr>"
         "</table>"
         f"{tabla_ventas}"
+        f"{tabla_ef_desglose}"
+        f"{tabla_vouchers_html}"
         '<table class="summary">'
         f'<tr><td class="label">TOTAL EFECTIVO (ventas):</td><td class="value">{escape(_fmt_money(total_efectivo))}</td></tr>'
         f'<tr><td class="label">TOTAL TARJETA (ventas):</td><td class="value">{escape(_fmt_money(total_tarjeta))}</td></tr>'
@@ -1046,6 +1118,29 @@ class CorteCajaVentana(QMainWindow):
     def _armar_html(self):
         ef_declarado = self._get_ef_declarado()
         tj_declarada = self._get_tj_declarada()
+
+        # Desglose de efectivo: {denominacion: cantidad} (omitir ceros)
+        ef_desglose = {
+            d: self._spinboxes[d].value()
+            for d in DENOMINACIONES
+            if self._spinboxes[d].value() > 0
+        }
+
+        # Lista de vouchers: [[no_voucher, monto], ...] (solo filas con monto > 0)
+        vouchers = []
+        for row in range(self.tabla_vouchers.rowCount()):
+            item_vou = self.tabla_vouchers.item(row, 0)
+            item_monto = self.tabla_vouchers.item(row, 1)
+            no_vou = item_vou.text().strip() if item_vou else ""
+            monto_txt = item_monto.text().strip().replace(",", "").replace("$", "") if item_monto else ""
+            if monto_txt:
+                try:
+                    monto = float(monto_txt)
+                    if monto > 0:
+                        vouchers.append([no_vou or "-", monto])
+                except ValueError:
+                    pass
+
         return _armar_html_corte(
             vendedor_nombre=self.cmb_vendedores.currentText(),
             fecha_apertura=self._fecha_apertura,
@@ -1057,6 +1152,8 @@ class CorteCajaVentana(QMainWindow):
             ef_declarado=ef_declarado,
             tj_declarada=tj_declarada,
             filas_ventas=self._datos_ventas,
+            ef_desglose=ef_desglose or None,
+            vouchers=vouchers or None,
         )
 
     def exportar_pdf(self):
