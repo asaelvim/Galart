@@ -212,11 +212,10 @@ class HistorialCortesDialog(QDialog):
         titulo.setFont(QFont("Segoe UI", 18, QFont.Weight.DemiBold))
         layout.addWidget(titulo)
 
-        self.tabla = QTableWidget(0, 9)
+        self.tabla = QTableWidget(0, 7)
         self.tabla.setHorizontalHeaderLabels([
             "ID", "Fecha", "Hora", "Vendedor",
             "Total Efectivo", "Total Voucher", "Total Venta",
-            "Vista Previa", "Descargar PDF",
         ])
         self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -230,12 +229,29 @@ class HistorialCortesDialog(QDialog):
         hdr.setSectionResizeMode(4, QHeaderView.ResizeToContents)
         hdr.setSectionResizeMode(5, QHeaderView.ResizeToContents)
         hdr.setSectionResizeMode(6, QHeaderView.ResizeToContents)
-        hdr.setSectionResizeMode(7, QHeaderView.Fixed)
-        hdr.setSectionResizeMode(8, QHeaderView.Fixed)
-        self.tabla.setColumnWidth(7, 120)
-        self.tabla.setColumnWidth(8, 130)
         self.tabla.setMinimumHeight(350)
         layout.addWidget(self.tabla)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(10)
+
+        btn_preview = QPushButton("Vista Previa")
+        btn_preview.setCursor(Qt.PointingHandCursor)
+        btn_preview.setFixedHeight(36)
+        btn_preview.setFont(QFont("Segoe UI", 10))
+        btn_preview.setStyleSheet(_BTN_PREVIEW_STYLE)
+        btn_preview.clicked.connect(self._preview_historial)
+        btn_row.addWidget(btn_preview)
+
+        btn_descargar = QPushButton("Descargar PDF")
+        btn_descargar.setCursor(Qt.PointingHandCursor)
+        btn_descargar.setFixedHeight(36)
+        btn_descargar.setFont(QFont("Segoe UI", 10))
+        btn_descargar.setStyleSheet(_BTN_PDF_STYLE)
+        btn_descargar.clicked.connect(self._exportar_historial)
+        btn_row.addWidget(btn_descargar)
+
+        btn_row.addStretch()
 
         btn_cerrar = QPushButton("Cerrar")
         btn_cerrar.setCursor(Qt.PointingHandCursor)
@@ -243,7 +259,9 @@ class HistorialCortesDialog(QDialog):
         btn_cerrar.setFont(QFont("Segoe UI", 10))
         btn_cerrar.setStyleSheet(_BTN_VOLVER_STYLE)
         btn_cerrar.clicked.connect(self.accept)
-        layout.addWidget(btn_cerrar, alignment=Qt.AlignRight)
+        btn_row.addWidget(btn_cerrar)
+
+        layout.addLayout(btn_row)
 
         self._cargar_datos()
 
@@ -319,18 +337,6 @@ class HistorialCortesDialog(QDialog):
                     )
                     self.tabla.setItem(row_idx, col, it)
 
-                btn_preview = QPushButton("Vista Previa")
-                btn_preview.setCursor(Qt.PointingHandCursor)
-                btn_preview.setStyleSheet(_BTN_PREVIEW_STYLE)
-                btn_preview.clicked.connect(lambda _, i=row_idx: self._preview(i))
-                self.tabla.setCellWidget(row_idx, 7, btn_preview)
-
-                btn_pdf = QPushButton("Descargar PDF")
-                btn_pdf.setCursor(Qt.PointingHandCursor)
-                btn_pdf.setStyleSheet(_BTN_PDF_STYLE)
-                btn_pdf.clicked.connect(lambda _, i=row_idx: self._exportar(i))
-                self.tabla.setCellWidget(row_idx, 8, btn_pdf)
-
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo cargar el historial:\n{e}")
 
@@ -357,6 +363,64 @@ class HistorialCortesDialog(QDialog):
         corte = self._cortes[idx]
         nombre_arch = f"corte_caja_{corte['id_cierre']}.pdf"
         _guardar_pdf(self, "Corte de Caja", nombre_arch, self._get_html(idx))
+
+    def _get_html_historial(self) -> str:
+        fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+        filas_html = ""
+        for corte in self._cortes:
+            filas_html += (
+                "<tr>"
+                f'<td class="num">{escape(corte["fecha_str"])}</td>'
+                f'<td class="num">{escape(corte["hora_str"])}</td>'
+                f'<td class="txt">{escape(corte["vendedor"])}</td>'
+                f'<td class="num">{escape(_fmt_money(corte["ef"]))}</td>'
+                f'<td class="num">{escape(_fmt_money(corte["vou"]))}</td>'
+                f'<td class="num">{escape(_fmt_money(corte["total"]))}</td>'
+                "</tr>"
+            )
+        return f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+{_PDF_CSS}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="brand">Galería de Arte</div>
+  <div class="title">Historial de Cortes de Caja</div>
+  <div class="sub">Generado el {fecha_hoy}</div>
+</div>
+<div class="line"></div>
+<table class="items">
+  <thead><tr>
+    <th style="width:12%;text-align:right;">Fecha</th>
+    <th style="width:10%;text-align:right;">Hora</th>
+    <th style="width:28%;">Vendedor</th>
+    <th style="width:16%;text-align:right;">Total Efectivo</th>
+    <th style="width:16%;text-align:right;">Total Voucher</th>
+    <th style="width:18%;text-align:right;">Total Venta</th>
+  </tr></thead>
+  <tbody>{filas_html}</tbody>
+</table>
+<div class="footer">Sistema Galería de Arte &mdash; Historial de Cortes</div>
+</body>
+</html>"""
+
+    def _preview_historial(self):
+        if not self._cortes:
+            QMessageBox.information(self, "Sin datos", "No hay registros en el historial.")
+            return
+        _vista_previa_pdf(self, "Historial de Cortes de Caja", "historial_cortes.pdf",
+                          self._get_html_historial())
+
+    def _exportar_historial(self):
+        if not self._cortes:
+            QMessageBox.information(self, "Sin datos", "No hay registros en el historial.")
+            return
+        _guardar_pdf(self, "Historial de Cortes de Caja", "historial_cortes.pdf",
+                     self._get_html_historial())
 
 
 class CorteCajaVentana(QMainWindow):
