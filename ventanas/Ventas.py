@@ -957,6 +957,22 @@ class VentasVentana(QMainWindow):
         except Exception:
             return False
 
+    def _vendedor_tiene_apertura(self, id_vendedor: int) -> bool:
+        try:
+            with db() as conn:
+                cur = conn.cursor()
+                _exec(
+                    cur,
+                    "SELECT COUNT(1) FROM AperturaCaja "
+                    "WHERE id_vendedor = ? "
+                    "AND CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)",
+                    (id_vendedor,),
+                )
+                row = cur.fetchone()
+                return bool(row and row[0])
+        except Exception:
+            return False
+
     def _actualizar_estado_caja(self) -> None:
         cerrada = self._caja_cerrada_hoy()
         self.btnGuardar.setEnabled(not cerrada)
@@ -1437,6 +1453,24 @@ class VentasVentana(QMainWindow):
             return
         if not self._detail_lines:
             self._show_error("Validación", "Agrega al menos una línea de detalle.")
+            return
+
+        id_vendedor = self.cmbVendedor.currentData()
+        if id_vendedor is not None and not self._vendedor_tiene_apertura(id_vendedor):
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Caja sin apertura")
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText(
+                "El vendedor seleccionado no tiene apertura de caja para hoy.\n"
+                "Debes abrir la caja antes de realizar ventas."
+            )
+            btn_abrir = msg.addButton("Ir a Abrir Caja", QMessageBox.ActionRole)
+            msg.addButton("Cancelar", QMessageBox.RejectRole)
+            msg.exec()
+            if msg.clickedButton() == btn_abrir:
+                if self.ventana_principal is not None:
+                    self.close()
+                    self.ventana_principal.abrir_corte_caja()
             return
 
         total = self._total_actual()
