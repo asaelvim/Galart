@@ -444,7 +444,7 @@ class VentasVentana(QMainWindow):
         title.setObjectName("Title")
         card_layout.addWidget(title)
 
-        self._lbl_caja_cerrada = QLabel("🔒 Caja cerrada — no se pueden registrar ventas hoy.")
+        self._lbl_caja_cerrada = QLabel("🔒 Caja cerrada — el vendedor seleccionado no puede registrar ventas hoy.")
         self._lbl_caja_cerrada.setAlignment(Qt.AlignHCenter)
         self._lbl_caja_cerrada.setStyleSheet(
             "color: #B45309; background: #FEF3C7; border: 1px solid #F59E0B;"
@@ -477,6 +477,7 @@ class VentasVentana(QMainWindow):
         self.cmbVendedor = QComboBox()
         self.cmbVendedor.setObjectName("Combo")
         self.cmbVendedor.setFixedWidth(260)
+        self.cmbVendedor.currentIndexChanged.connect(self._actualizar_estado_caja)
         self.btnAdministrarVendedores = self._button("Administrar vendedores", self.abrir_vendedores, wide=True)
         self.btnAdministrarVendedores.setFixedWidth(200)
         row_vendedor.addWidget(lbl_vendedor)
@@ -943,14 +944,16 @@ class VentasVentana(QMainWindow):
     def _show_error(self, title: str, msg: str) -> None:
         QMessageBox.critical(self, title, msg)
 
-    def _caja_cerrada_hoy(self) -> bool:
+    def _caja_cerrada_hoy(self, id_vendedor: int) -> bool:
         try:
             with db() as conn:
                 cur = conn.cursor()
                 _exec(
                     cur,
                     "SELECT COUNT(1) FROM CierreCaja "
-                    "WHERE CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)",
+                    "WHERE id_vendedor = ? "
+                    "AND CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)",
+                    (id_vendedor,),
                 )
                 row = cur.fetchone()
                 return bool(row and row[0])
@@ -974,13 +977,14 @@ class VentasVentana(QMainWindow):
             return False
 
     def _actualizar_estado_caja(self) -> None:
-        cerrada = self._caja_cerrada_hoy()
+        id_vendedor = self.cmbVendedor.currentData()
+        cerrada = self._caja_cerrada_hoy(id_vendedor) if id_vendedor is not None else False
         self.btnGuardar.setEnabled(not cerrada)
         if cerrada:
             self.btnEliminar.setEnabled(False)
         self.btnAgregarLinea.setEnabled(not cerrada)
         self.btnImportarCotizacion.setEnabled(not cerrada)
-        tooltip = "La caja está cerrada. No se pueden registrar ventas hoy." if cerrada else ""
+        tooltip = "La caja del vendedor seleccionado está cerrada. No se pueden registrar ventas." if cerrada else ""
         self.btnGuardar.setToolTip(tooltip)
         self.btnEliminar.setToolTip(tooltip)
         self.btnAgregarLinea.setToolTip(tooltip)
