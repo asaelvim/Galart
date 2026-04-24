@@ -249,13 +249,22 @@ class CorteCajaVentana(QMainWindow):
             self.btn_preview.setEnabled(hay_datos)
 
             cerrada = self._caja_cerrada_hoy()
-            self.btn_cerrar_caja.setEnabled(not cerrada)
             self.btn_editar.setEnabled(not cerrada)
+            try:
+                self.btn_cerrar_caja.clicked.disconnect()
+            except Exception:
+                pass
             if cerrada:
-                self.btn_cerrar_caja.setToolTip("La caja ya fue cerrada hoy.")
+                self.btn_cerrar_caja.setText("🔓 Reabrir Caja")
+                self.btn_cerrar_caja.setStyleSheet(_BTN_PREVIEW_STYLE)
+                self.btn_cerrar_caja.setToolTip("Haz clic para reabrir la caja.")
+                self.btn_cerrar_caja.clicked.connect(self.reabrir_caja)
                 self.btn_editar.setToolTip("La caja ya fue cerrada hoy.")
             else:
+                self.btn_cerrar_caja.setText("🔒 Cerrar Caja")
+                self.btn_cerrar_caja.setStyleSheet(_BTN_PDF_STYLE)
                 self.btn_cerrar_caja.setToolTip("")
+                self.btn_cerrar_caja.clicked.connect(self.cerrar_caja)
                 self.btn_editar.setToolTip("")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo cargar el corte de caja:\n{e}")
@@ -406,6 +415,33 @@ class CorteCajaVentana(QMainWindow):
             self.recargar()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo registrar el cierre de caja:\n{e}")
+
+    def reabrir_caja(self):
+        respuesta = QMessageBox.question(
+            self,
+            "Confirmar reapertura de caja",
+            "Se eliminará el último registro de cierre de caja, lo que reabrirá la caja.\n"
+            "¿Deseas continuar?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if respuesta != QMessageBox.Yes:
+            return
+        try:
+            cursor = self.conexion.cursor()
+            cursor.execute(
+                """
+                WITH ultimo AS (
+                    SELECT TOP 1 * FROM CierreCaja ORDER BY fecha DESC
+                )
+                DELETE FROM ultimo
+                """
+            )
+            self.conexion.commit()
+            QMessageBox.information(self, "Listo", "La caja ha sido reabierta correctamente.")
+            self.recargar()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo reabrir la caja:\n{e}")
 
     def regresar(self):
         if self.ventana_padre:
