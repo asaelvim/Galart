@@ -5,19 +5,30 @@ from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QMainWindow, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame,
-    QMessageBox, QInputDialog
+    QMessageBox, QInputDialog, QComboBox, QScrollArea, QWidget, QSpinBox,
+    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
 )
 
-from modulos.Fondo import Fondo
-from modulos.Carta import Carta
-from modulos.PaletaColores import BORDE, DESACTIVADO, FONDO_B, TEXTO_BOTON
+from modulos.PaletaColores import (
+    BORDE, DESACTIVADO, FONDO_B, TEXTO_BOTON, SUPERFICIE,
+    PRIMARIO, TEXTO, FONDO_A, BORDE_BOTON, FONDO_ACTIVO,
+)
 from ventanas.Reportes import (
     _VENTANA_STYLE, _BTN_PDF_STYLE, _BTN_PREVIEW_STYLE, _BTN_VOLVER_STYLE,
-    _PDF_CSS, _make_tabla, _tabla_item, _guardar_pdf, _vista_previa_pdf, _fmt_money
+    _PDF_CSS, _make_tabla, _tabla_item, _guardar_pdf, _vista_previa_pdf, _fmt_money,
 )
 
+MAX_OPENING_AMOUNT = 999_999_999.99
+DENOMINACIONES = [1000, 500, 200, 100, 50, 20, 10, 5, 1]
 
-MAX_OPENING_AMOUNT = 999999999.99
+_IND_PENDING = (
+    "background: #FEF3C7; color: #92400E; border-radius: 8px;"
+    " padding: 8px; font-weight: bold;"
+)
+_IND_OK = (
+    "background: #DCFCE7; color: #166534; border-radius: 8px;"
+    " padding: 8px; font-weight: bold;"
+)
 
 
 def _fmt_fecha(valor):
@@ -29,88 +40,149 @@ def _fmt_fecha(valor):
         return str(valor)
 
 
+def _sep() -> QFrame:
+    f = QFrame()
+    f.setFrameShape(QFrame.HLine)
+    f.setFixedHeight(1)
+    f.setStyleSheet(f"background: {BORDE}; border: none;")
+    return f
+
+
 class CorteCajaVentana(QMainWindow):
     def __init__(self, conexion, ventana_padre=None):
         super().__init__(ventana_padre)
         self.conexion = conexion
         self.ventana_padre = ventana_padre
+
+        # ── state ──────────────────────────────────────────────────────────
+        self._id_vendedor = None
         self._id_apertura = None
         self._monto_apertura = 0.0
         self._fecha_apertura = None
         self._total_ventas = 0.0
-        self._total_general = 0.0
+        self._total_efectivo = 0.0
+        self._total_tarjeta = 0.0
         self._datos_ventas = []
 
         self.setWindowTitle("Corte de Caja")
-        self.setMinimumSize(QSize(980, 660))
+        self.setMinimumSize(QSize(1100, 820))
         self.setStyleSheet(_VENTANA_STYLE)
 
-        root = Fondo()
+        # ── root + scroll ──────────────────────────────────────────────────
+        root = QWidget()
+        root.setStyleSheet(f"background: {FONDO_A};")
         self.setCentralWidget(root)
 
-        main = QVBoxLayout(root)
-        main.setContentsMargins(0, 0, 0, 0)
-        main.addStretch(1)
+        outer = QVBoxLayout(root)
+        outer.setContentsMargins(0, 0, 0, 0)
 
-        card = Carta()
-        card.setMinimumSize(940, 600)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        outer.addWidget(scroll)
 
-        wrap = QHBoxLayout()
-        wrap.addStretch(1)
-        wrap.addWidget(card)
-        wrap.addStretch(1)
-        main.addLayout(wrap)
-        main.addStretch(1)
+        page = QWidget()
+        page.setStyleSheet(f"background: {FONDO_A};")
+        scroll.setWidget(page)
 
-        content = QVBoxLayout(card)
-        content.setContentsMargins(28, 22, 28, 22)
-        content.setSpacing(12)
+        content = QVBoxLayout(page)
+        content.setContentsMargins(36, 28, 36, 28)
+        content.setSpacing(14)
 
+        # ── title ──────────────────────────────────────────────────────────
         titulo = QLabel("Corte de Caja")
         titulo.setAlignment(Qt.AlignHCenter)
         titulo.setFont(QFont("Segoe UI", 24, QFont.Weight.DemiBold))
         content.addWidget(titulo)
 
-        subtitulo = QLabel("Resumen de operaciones del día")
+        subtitulo = QLabel("Gestión de apertura y cierre de caja por vendedor")
         subtitulo.setAlignment(Qt.AlignHCenter)
         subtitulo.setFont(QFont("Segoe UI", 11))
         subtitulo.setStyleSheet(f"color: {DESACTIVADO};")
         content.addWidget(subtitulo)
 
-        linea = QFrame()
-        linea.setFrameShape(QFrame.HLine)
-        linea.setFixedHeight(1)
-        linea.setStyleSheet(f"background: {BORDE}; border: none;")
-        content.addWidget(linea)
+        content.addWidget(_sep())
 
-        fila_apertura = QHBoxLayout()
-        self.lbl_apertura = QLabel("Monto de apertura: $0.00")
-        self.lbl_apertura.setFont(QFont("Segoe UI", 12, QFont.Weight.DemiBold))
-        fila_apertura.addWidget(self.lbl_apertura)
-        fila_apertura.addStretch(1)
+        # ── vendor selector row ────────────────────────────────────────────
+        vend_row = QHBoxLayout()
+        vend_row.setSpacing(12)
 
-        self.btn_editar = QPushButton("Editar")
-        self.btn_editar.setCursor(Qt.PointingHandCursor)
-        self.btn_editar.setFixedHeight(36)
-        self.btn_editar.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
-        self.btn_editar.setStyleSheet(_BTN_PREVIEW_STYLE)
-        self.btn_editar.clicked.connect(self.editar_apertura)
-        fila_apertura.addWidget(self.btn_editar)
-        content.addLayout(fila_apertura)
+        lbl_v = QLabel("Vendedor:")
+        lbl_v.setFont(QFont("Segoe UI", 12, QFont.Weight.DemiBold))
+        vend_row.addWidget(lbl_v)
 
-        self.tabla = _make_tabla(["ID", "Cliente", "Vendedor", "Forma de Pago", "Total"])
+        self.cmb_vendedores = QComboBox()
+        self.cmb_vendedores.setMinimumWidth(240)
+        self.cmb_vendedores.setFixedHeight(38)
+        self.cmb_vendedores.setFont(QFont("Segoe UI", 11))
+        vend_row.addWidget(self.cmb_vendedores)
+
+        self.btn_aperturar = QPushButton("\U0001f513 Aperturar Caja")
+        self.btn_aperturar.setCursor(Qt.PointingHandCursor)
+        self.btn_aperturar.setFixedHeight(38)
+        self.btn_aperturar.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
+        self.btn_aperturar.setStyleSheet(_BTN_PDF_STYLE)
+        self.btn_aperturar.setEnabled(False)
+        self.btn_aperturar.clicked.connect(self._aperturar_caja)
+        vend_row.addWidget(self.btn_aperturar)
+
+        self.lbl_apertura_info = QLabel("")
+        self.lbl_apertura_info.setFont(QFont("Segoe UI", 11))
+        vend_row.addWidget(self.lbl_apertura_info)
+        vend_row.addStretch(1)
+        content.addLayout(vend_row)
+
+        content.addWidget(_sep())
+
+        # ── sales table ────────────────────────────────────────────────────
+        lbl_ventas = QLabel("Ventas del Día")
+        lbl_ventas.setFont(QFont("Segoe UI", 14, QFont.Weight.DemiBold))
+        content.addWidget(lbl_ventas)
+
+        self.tabla = _make_tabla(["ID", "Cliente", "Forma de Pago", "Total"], min_height=160)
         content.addWidget(self.tabla)
 
-        self.lbl_total = QLabel("Total del día (apertura + ventas): $0.00")
-        self.lbl_total.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
-        self.lbl_total.setStyleSheet(
-            f"color: {TEXTO_BOTON}; background: {FONDO_B}; border: 1px solid {BORDE};"
-            f" border-radius: 8px; padding: 6px 10px;"
-        )
-        content.addWidget(self.lbl_total, alignment=Qt.AlignRight)
+        sum_row = QHBoxLayout()
+        sum_row.addStretch(1)
+        self.lbl_ef_vtas = self._badge("Efectivo: $0.00")
+        self.lbl_tj_vtas = self._badge("Tarjeta: $0.00")
+        self.lbl_total_vtas = self._badge("Total: $0.00")
+        for w in (self.lbl_ef_vtas, self.lbl_tj_vtas, self.lbl_total_vtas):
+            sum_row.addWidget(w)
+            sum_row.addSpacing(8)
+        content.addLayout(sum_row)
 
-        acciones = QHBoxLayout()
-        acciones.addStretch(1)
+        # ── declaration section ────────────────────────────────────────────
+        self.decl_widget = QWidget()
+        decl_lay = QVBoxLayout(self.decl_widget)
+        decl_lay.setContentsMargins(0, 0, 0, 0)
+        decl_lay.setSpacing(14)
+
+        decl_lay.addWidget(_sep())
+
+        decl_titulo = QLabel("Declaración para Cierre de Caja")
+        decl_titulo.setFont(QFont("Segoe UI", 16, QFont.Weight.DemiBold))
+        decl_lay.addWidget(decl_titulo)
+
+        decl_cols = QHBoxLayout()
+        decl_cols.setSpacing(20)
+
+        self._spinboxes = {}
+        self._sub_labels = {}
+
+        decl_cols.addWidget(self._make_ef_card())
+        decl_cols.addWidget(self._make_tj_card())
+        decl_lay.addLayout(decl_cols)
+
+        content.addWidget(self.decl_widget)
+        self.decl_widget.setVisible(False)
+
+        content.addWidget(_sep())
+
+        # ── action buttons ─────────────────────────────────────────────────
+        acc = QHBoxLayout()
+        acc.addStretch(1)
 
         self.btn_preview = QPushButton("Vista Previa")
         self.btn_preview.setCursor(Qt.PointingHandCursor)
@@ -128,12 +200,12 @@ class CorteCajaVentana(QMainWindow):
         self.btn_pdf.setEnabled(False)
         self.btn_pdf.clicked.connect(self.exportar_pdf)
 
-        self.btn_cerrar_caja = QPushButton("🔒 Cerrar Caja")
+        self.btn_cerrar_caja = QPushButton("\U0001f512 Cerrar Caja")
         self.btn_cerrar_caja.setCursor(Qt.PointingHandCursor)
         self.btn_cerrar_caja.setFixedHeight(40)
         self.btn_cerrar_caja.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
         self.btn_cerrar_caja.setStyleSheet(_BTN_PDF_STYLE)
-        self.btn_cerrar_caja.clicked.connect(self.cerrar_caja)
+        self.btn_cerrar_caja.setEnabled(False)
 
         btn_volver = QPushButton("Volver")
         btn_volver.setCursor(Qt.PointingHandCursor)
@@ -142,139 +214,384 @@ class CorteCajaVentana(QMainWindow):
         btn_volver.setStyleSheet(_BTN_VOLVER_STYLE)
         btn_volver.clicked.connect(self.regresar)
 
-        acciones.addWidget(self.btn_preview)
-        acciones.addSpacing(8)
-        acciones.addWidget(self.btn_pdf)
-        acciones.addSpacing(8)
-        acciones.addWidget(self.btn_cerrar_caja)
-        acciones.addSpacing(8)
-        acciones.addWidget(btn_volver)
-        content.addLayout(acciones)
+        for w in (self.btn_preview, self.btn_pdf, self.btn_cerrar_caja, btn_volver):
+            acc.addWidget(w)
+            acc.addSpacing(8)
+        content.addLayout(acc)
 
+        content.addStretch(1)
+
+        # ── initial load ───────────────────────────────────────────────────
+        self._cargar_vendedores()
+        self.cmb_vendedores.currentIndexChanged.connect(self._on_vendedor_changed)
+
+    # ── widget helpers ─────────────────────────────────────────────────────
+
+    def _badge(self, text):
+        lbl = QLabel(text)
+        lbl.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        lbl.setStyleSheet(
+            f"color: {TEXTO_BOTON}; background: {FONDO_B}; border: 1px solid {BORDE};"
+            " border-radius: 8px; padding: 6px 10px;"
+        )
+        return lbl
+
+    def _make_ef_card(self):
+        card = QFrame()
+        card.setObjectName("efCard")
+        card.setStyleSheet(
+            f"QFrame#efCard {{ background: {SUPERFICIE}; border: 1px solid {BORDE};"
+            " border-radius: 10px; }"
+        )
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setSpacing(8)
+
+        lbl_t = QLabel("\U0001f4b5 Declaración de Efectivo")
+        lbl_t.setFont(QFont("Segoe UI", 13, QFont.Weight.DemiBold))
+        lay.addWidget(lbl_t)
+
+        self.lbl_meta_ef = QLabel("Meta: $0.00")
+        self.lbl_meta_ef.setFont(QFont("Segoe UI", 10))
+        self.lbl_meta_ef.setStyleSheet(f"color: {DESACTIVADO};")
+        lay.addWidget(self.lbl_meta_ef)
+
+        spin_style = (
+            f"QSpinBox {{ background: {SUPERFICIE}; border: 1px solid {BORDE_BOTON};"
+            f" border-radius: 6px; padding: 3px 6px; color: {TEXTO}; }}"
+        )
+        for denom in DENOMINACIONES:
+            row = QHBoxLayout()
+
+            ld = QLabel(f"${denom:,}")
+            ld.setFont(QFont("Segoe UI", 11))
+            ld.setFixedWidth(68)
+            row.addWidget(ld)
+
+            spin = QSpinBox()
+            spin.setRange(0, 99999)
+            spin.setFixedHeight(30)
+            spin.setFixedWidth(84)
+            spin.setFont(QFont("Segoe UI", 11))
+            spin.setStyleSheet(spin_style)
+            spin.valueChanged.connect(lambda _v, d=denom: self._on_denom_changed(d))
+            row.addWidget(spin)
+
+            leq = QLabel("=")
+            leq.setFont(QFont("Segoe UI", 11))
+            leq.setContentsMargins(4, 0, 4, 0)
+            row.addWidget(leq)
+
+            lsub = QLabel("$0.00")
+            lsub.setFont(QFont("Segoe UI", 11))
+            lsub.setFixedWidth(96)
+            lsub.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            row.addWidget(lsub)
+            row.addStretch(1)
+
+            lay.addLayout(row)
+            self._spinboxes[denom] = spin
+            self._sub_labels[denom] = lsub
+
+        isep = QFrame()
+        isep.setFrameShape(QFrame.HLine)
+        isep.setFixedHeight(1)
+        isep.setStyleSheet(f"background: {BORDE}; border: none;")
+        lay.addWidget(isep)
+
+        tot_row = QHBoxLayout()
+        tot_row.addStretch(1)
+        lt = QLabel("Total declarado:")
+        lt.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        tot_row.addWidget(lt)
+        self.lbl_ef_declarado = QLabel("$0.00")
+        self.lbl_ef_declarado.setFont(QFont("Segoe UI", 12, QFont.Weight.DemiBold))
+        self.lbl_ef_declarado.setMinimumWidth(100)
+        self.lbl_ef_declarado.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        tot_row.addWidget(self.lbl_ef_declarado)
+        lay.addLayout(tot_row)
+
+        self.lbl_ind_ef = QLabel("Falta: $0.00")
+        self.lbl_ind_ef.setFont(QFont("Segoe UI", 12, QFont.Weight.DemiBold))
+        self.lbl_ind_ef.setAlignment(Qt.AlignCenter)
+        self.lbl_ind_ef.setStyleSheet(_IND_PENDING)
+        lay.addWidget(self.lbl_ind_ef)
+
+        return card
+
+    def _make_tj_card(self):
+        card = QFrame()
+        card.setObjectName("tjCard")
+        card.setStyleSheet(
+            f"QFrame#tjCard {{ background: {SUPERFICIE}; border: 1px solid {BORDE};"
+            " border-radius: 10px; }"
+        )
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setSpacing(8)
+
+        lbl_t = QLabel("\U0001f4b3 Declaración de Tarjeta / Vouchers")
+        lbl_t.setFont(QFont("Segoe UI", 13, QFont.Weight.DemiBold))
+        lay.addWidget(lbl_t)
+
+        self.lbl_meta_tj = QLabel("Meta: $0.00")
+        self.lbl_meta_tj.setFont(QFont("Segoe UI", 10))
+        self.lbl_meta_tj.setStyleSheet(f"color: {DESACTIVADO};")
+        lay.addWidget(self.lbl_meta_tj)
+
+        self.tabla_vouchers = QTableWidget(1, 2)
+        self.tabla_vouchers.setHorizontalHeaderLabels(["No. Voucher", "Monto"])
+        hdr = self.tabla_vouchers.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.Stretch)
+        hdr.setSectionResizeMode(1, QHeaderView.Fixed)
+        self.tabla_vouchers.setColumnWidth(1, 130)
+        self.tabla_vouchers.verticalHeader().setVisible(False)
+        self.tabla_vouchers.setMinimumHeight(240)
+        self.tabla_vouchers.setAlternatingRowColors(True)
+        self.tabla_vouchers.itemChanged.connect(self._on_voucher_changed)
+        lay.addWidget(self.tabla_vouchers)
+
+        isep = QFrame()
+        isep.setFrameShape(QFrame.HLine)
+        isep.setFixedHeight(1)
+        isep.setStyleSheet(f"background: {BORDE}; border: none;")
+        lay.addWidget(isep)
+
+        tot_row = QHBoxLayout()
+        tot_row.addStretch(1)
+        lt = QLabel("Total declarado:")
+        lt.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        tot_row.addWidget(lt)
+        self.lbl_tj_declarada = QLabel("$0.00")
+        self.lbl_tj_declarada.setFont(QFont("Segoe UI", 12, QFont.Weight.DemiBold))
+        self.lbl_tj_declarada.setMinimumWidth(100)
+        self.lbl_tj_declarada.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        tot_row.addWidget(self.lbl_tj_declarada)
+        lay.addLayout(tot_row)
+
+        self.lbl_ind_tj = QLabel("Falta: $0.00")
+        self.lbl_ind_tj.setFont(QFont("Segoe UI", 12, QFont.Weight.DemiBold))
+        self.lbl_ind_tj.setAlignment(Qt.AlignCenter)
+        self.lbl_ind_tj.setStyleSheet(_IND_PENDING)
+        lay.addWidget(self.lbl_ind_tj)
+
+        return card
+
+    # ── data loading ───────────────────────────────────────────────────────
+
+    def _cargar_vendedores(self):
+        try:
+            cursor = self.conexion.cursor()
+            cursor.execute(
+                "SELECT id_vendedor, nombre FROM Vendedores WHERE activo = 1 ORDER BY nombre"
+            )
+            rows = cursor.fetchall()
+            self.cmb_vendedores.blockSignals(True)
+            self.cmb_vendedores.clear()
+            self.cmb_vendedores.addItem("-- Seleccionar vendedor --", None)
+            for r in rows:
+                self.cmb_vendedores.addItem(str(r[1]), int(r[0]))
+            self.cmb_vendedores.blockSignals(False)
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Error", f"No se pudo cargar la lista de vendedores:\n{e}"
+            )
+
+    def _on_vendedor_changed(self, _index):
+        self._id_vendedor = self.cmb_vendedores.currentData()
+        if self._id_vendedor is None:
+            self._limpiar_todo()
+            return
+        self._reset_declaracion()
         self.recargar()
 
-    def _caja_cerrada_hoy(self) -> bool:
+    def _limpiar_todo(self):
+        self.tabla.setRowCount(0)
+        self._datos_ventas = []
+        self._total_ventas = self._total_efectivo = self._total_tarjeta = 0.0
+        self.lbl_ef_vtas.setText("Efectivo: $0.00")
+        self.lbl_tj_vtas.setText("Tarjeta: $0.00")
+        self.lbl_total_vtas.setText("Total: $0.00")
+        self.lbl_apertura_info.setText("")
+        self.btn_aperturar.setEnabled(False)
+        self.btn_aperturar.setText("\U0001f513 Aperturar Caja")
+        self.decl_widget.setVisible(False)
+        self.btn_pdf.setEnabled(False)
+        self.btn_preview.setEnabled(False)
+        self.btn_cerrar_caja.setEnabled(False)
+        self.btn_cerrar_caja.setText("\U0001f512 Cerrar Caja")
+        self.btn_cerrar_caja.setStyleSheet(_BTN_PDF_STYLE)
+
+    def _reset_declaracion(self):
+        for denom, spin in self._spinboxes.items():
+            spin.blockSignals(True)
+            spin.setValue(0)
+            spin.blockSignals(False)
+            self._sub_labels[denom].setText("$0.00")
+        self.tabla_vouchers.blockSignals(True)
+        self.tabla_vouchers.setRowCount(1)
+        self.tabla_vouchers.clearContents()
+        self.tabla_vouchers.blockSignals(False)
+        self.lbl_ef_declarado.setText("$0.00")
+        self.lbl_tj_declarada.setText("$0.00")
+        self.lbl_ind_ef.setText("Falta: $0.00")
+        self.lbl_ind_ef.setStyleSheet(_IND_PENDING)
+        self.lbl_ind_tj.setText("Falta: $0.00")
+        self.lbl_ind_tj.setStyleSheet(_IND_PENDING)
+
+    def _apertura_hoy(self):
+        if self._id_vendedor is None:
+            return None
+        cursor = self.conexion.cursor()
+        cursor.execute(
+            """
+            SELECT TOP 1 id_apertura, monto, fecha
+            FROM AperturaCaja
+            WHERE id_vendedor = ?
+              AND CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
+            ORDER BY id_apertura DESC
+            """,
+            (self._id_vendedor,),
+        )
+        return cursor.fetchone()
+
+    def _caja_cerrada_hoy(self):
+        if self._id_vendedor is None:
+            return False
         try:
             cursor = self.conexion.cursor()
             cursor.execute(
                 """
                 SELECT COUNT(1)
                 FROM CierreCaja
-                WHERE CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
-                """
+                WHERE id_vendedor = ?
+                  AND CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
+                """,
+                (self._id_vendedor,),
             )
             row = cursor.fetchone()
             return bool(row and row[0])
         except Exception:
             return False
 
-    def _asegurar_apertura_hoy(self):
-        cursor = self.conexion.cursor()
-        cursor.execute(
-            """
-            INSERT INTO AperturaCaja (monto, fecha)
-            SELECT ?, GETDATE()
-            WHERE NOT EXISTS (
-                SELECT 1
-                FROM AperturaCaja
-                WHERE CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
-            )
-            """,
-            (0,),
-        )
-        self.conexion.commit()
-
-        cursor.execute(
-            """
-            SELECT TOP 1 id_apertura, monto, fecha
-            FROM AperturaCaja
-            WHERE CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
-            ORDER BY id_apertura DESC
-            """
-        )
-        return cursor.fetchone()
-
     def recargar(self):
+        if self._id_vendedor is None:
+            self._limpiar_todo()
+            return
         try:
-            apertura = self._asegurar_apertura_hoy()
-            self._id_apertura = apertura.id_apertura if apertura else None
-            self._monto_apertura = float((apertura.monto if apertura else 0) or 0)
-            self._fecha_apertura = apertura.fecha if apertura else None
+            apertura = self._apertura_hoy()
+            tiene_apertura = apertura is not None
+            self._id_apertura = apertura[0] if apertura else None
+            self._monto_apertura = float((apertura[1] if apertura else 0) or 0)
+            self._fecha_apertura = apertura[2] if apertura else None
+
+            if tiene_apertura:
+                self.lbl_apertura_info.setText(
+                    f"\u2713 Aperturada: {_fmt_money(self._monto_apertura)}"
+                    f"  |  {_fmt_fecha(self._fecha_apertura)}"
+                )
+                self.lbl_apertura_info.setStyleSheet("color: #166534; font-weight: bold;")
+                self.btn_aperturar.setEnabled(False)
+                self.btn_aperturar.setText("\u2713 Caja Aperturada")
+            else:
+                self.lbl_apertura_info.setText("Sin apertura hoy")
+                self.lbl_apertura_info.setStyleSheet(f"color: {DESACTIVADO};")
+                self.btn_aperturar.setEnabled(True)
+                self.btn_aperturar.setText("\U0001f513 Aperturar Caja")
 
             cursor = self.conexion.cursor()
             cursor.execute(
                 """
-                SELECT v.id_venta, c.nombre AS cliente, ven.nombre AS vendedor,
-                       v.forma_pago, v.total
+                SELECT v.id_venta, c.nombre AS cliente, v.forma_pago, v.total
                 FROM Ventas v
                 LEFT JOIN Clientes c ON c.id_cliente = v.id_cliente
-                LEFT JOIN Vendedores ven ON ven.id_vendedor = v.id_vendedor
-                WHERE CAST(v.fecha AS DATE) = CAST(GETDATE() AS DATE)
+                WHERE v.id_vendedor = ?
+                  AND CAST(v.fecha AS DATE) = CAST(GETDATE() AS DATE)
                 ORDER BY v.fecha
-                """
+                """,
+                (self._id_vendedor,),
             )
             filas = cursor.fetchall()
             self._datos_ventas = filas
 
             self.tabla.setRowCount(0)
-            self._total_ventas = 0.0
+            self._total_ventas = self._total_efectivo = self._total_tarjeta = 0.0
             for fila in filas:
                 row = self.tabla.rowCount()
                 self.tabla.insertRow(row)
                 valores = [
-                    fila.id_venta,
-                    fila.cliente or "",
-                    fila.vendedor or "",
-                    fila.forma_pago or "",
-                    _fmt_money(fila.total),
+                    fila[0],
+                    fila[1] or "",
+                    fila[2] or "",
+                    _fmt_money(fila[3]),
                 ]
                 aligns = [
                     Qt.AlignRight | Qt.AlignVCenter,
                     Qt.AlignLeft | Qt.AlignVCenter,
                     Qt.AlignLeft | Qt.AlignVCenter,
-                    Qt.AlignLeft | Qt.AlignVCenter,
                     Qt.AlignRight | Qt.AlignVCenter,
                 ]
-                for col, (valor, align) in enumerate(zip(valores, aligns)):
-                    self.tabla.setItem(row, col, _tabla_item(valor, align))
-                self._total_ventas += float(fila.total or 0)
+                for col, (val, al) in enumerate(zip(valores, aligns)):
+                    self.tabla.setItem(row, col, _tabla_item(val, al))
+                monto = float(fila[3] or 0)
+                self._total_ventas += monto
+                fp = (fila[2] or "").lower().strip()
+                if fp == "efectivo":
+                    self._total_efectivo += monto
+                elif fp == "tarjeta":
+                    self._total_tarjeta += monto
 
-            self._total_general = self._monto_apertura + self._total_ventas
-            self.lbl_apertura.setText(f"Monto de apertura: {_fmt_money(self._monto_apertura)}")
-            self.lbl_total.setText(
-                f"Total del día (apertura + ventas): {_fmt_money(self._total_general)}"
-            )
+            self.lbl_ef_vtas.setText(f"Efectivo: {_fmt_money(self._total_efectivo)}")
+            self.lbl_tj_vtas.setText(f"Tarjeta: {_fmt_money(self._total_tarjeta)}")
+            self.lbl_total_vtas.setText(f"Total: {_fmt_money(self._total_ventas)}")
+
             hay_datos = bool(self._datos_ventas)
-            self.btn_pdf.setEnabled(hay_datos)
-            self.btn_preview.setEnabled(hay_datos)
+            self.btn_pdf.setEnabled(hay_datos and tiene_apertura)
+            self.btn_preview.setEnabled(hay_datos and tiene_apertura)
 
             cerrada = self._caja_cerrada_hoy()
-            self.btn_editar.setEnabled(not cerrada)
+            if tiene_apertura and not cerrada:
+                self.decl_widget.setVisible(True)
+                self.lbl_meta_ef.setText(f"Meta: {_fmt_money(self._total_efectivo)}")
+                self.lbl_meta_tj.setText(f"Meta: {_fmt_money(self._total_tarjeta)}")
+                self._actualizar_indicadores()
+            else:
+                self.decl_widget.setVisible(False)
+
             try:
                 self.btn_cerrar_caja.clicked.disconnect()
             except Exception:
                 pass
             if cerrada:
-                self.btn_cerrar_caja.setText("🔓 Reabrir Caja")
+                self.btn_cerrar_caja.setText("\U0001f513 Reabrir Caja")
                 self.btn_cerrar_caja.setStyleSheet(_BTN_PREVIEW_STYLE)
-                self.btn_cerrar_caja.setToolTip("Haz clic para reabrir la caja.")
-                self.btn_cerrar_caja.clicked.connect(self.reabrir_caja)
-                self.btn_editar.setToolTip("La caja ya fue cerrada hoy.")
-            else:
-                self.btn_cerrar_caja.setText("🔒 Cerrar Caja")
+                self.btn_cerrar_caja.setEnabled(True)
+                self.btn_cerrar_caja.clicked.connect(self._reabrir_caja)
+            elif tiene_apertura:
+                self.btn_cerrar_caja.setText("\U0001f512 Cerrar Caja")
                 self.btn_cerrar_caja.setStyleSheet(_BTN_PDF_STYLE)
-                self.btn_cerrar_caja.setToolTip("")
-                self.btn_cerrar_caja.clicked.connect(self.cerrar_caja)
-                self.btn_editar.setToolTip("")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"No se pudo cargar el corte de caja:\n{e}")
+                self.btn_cerrar_caja.clicked.connect(self._cerrar_caja)
+                self._actualizar_btn_cerrar()
+            else:
+                self.btn_cerrar_caja.setText("\U0001f512 Cerrar Caja")
+                self.btn_cerrar_caja.setStyleSheet(_BTN_PDF_STYLE)
+                self.btn_cerrar_caja.setEnabled(False)
 
-    def editar_apertura(self):
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Error", f"No se pudo cargar el corte de caja:\n{e}"
+            )
+
+    # ── apertura ───────────────────────────────────────────────────────────
+
+    def _aperturar_caja(self):
+        if self._id_vendedor is None:
+            return
         monto, ok = QInputDialog.getDouble(
             self,
-            "Editar monto de apertura",
-            "Monto de apertura:",
-            self._monto_apertura,
+            "Apertura de Caja",
+            "Monto inicial de apertura:",
+            0.0,
             0.0,
             MAX_OPENING_AMOUNT,
             2,
@@ -282,86 +599,254 @@ class CorteCajaVentana(QMainWindow):
         if not ok:
             return
         try:
-            if self._id_apertura is None:
-                apertura = self._asegurar_apertura_hoy()
-                self._id_apertura = apertura.id_apertura if apertura else None
-            if self._id_apertura is None:
-                QMessageBox.warning(
-                    self,
-                    "Error",
-                    "No se pudo obtener un registro de apertura de caja para actualizar.",
-                )
-                return
             cursor = self.conexion.cursor()
             cursor.execute(
-                "UPDATE AperturaCaja SET monto = ? WHERE id_apertura = ?",
-                (monto, self._id_apertura),
+                """
+                INSERT INTO AperturaCaja (id_vendedor, monto, fecha)
+                SELECT ?, ?, GETDATE()
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM AperturaCaja
+                    WHERE id_vendedor = ?
+                      AND CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
+                )
+                """,
+                (self._id_vendedor, monto, self._id_vendedor),
             )
+            filas = cursor.rowcount
             self.conexion.commit()
+            if filas == 0:
+                QMessageBox.warning(
+                    self,
+                    "Aviso",
+                    "Ya existe una apertura de caja para este vendedor hoy.",
+                )
+            else:
+                QMessageBox.information(self, "Listo", "Caja aperturada correctamente.")
             self.recargar()
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"No se pudo actualizar el monto de apertura:\n{e}")
+            QMessageBox.critical(self, "Error", f"No se pudo aperturar la caja:\n{e}")
+
+    # ── declaration helpers ────────────────────────────────────────────────
+
+    def _on_denom_changed(self, denom):
+        qty = self._spinboxes[denom].value()
+        self._sub_labels[denom].setText(_fmt_money(denom * qty))
+        self._actualizar_indicadores()
+
+    def _get_ef_declarado(self):
+        return sum(d * self._spinboxes[d].value() for d in DENOMINACIONES)
+
+    def _get_tj_declarada(self):
+        total = 0.0
+        for row in range(self.tabla_vouchers.rowCount()):
+            item = self.tabla_vouchers.item(row, 1)
+            if item:
+                txt = item.text().strip().replace(",", "").replace("$", "")
+                if txt:
+                    try:
+                        val = float(txt)
+                        if val > 0:
+                            total += val
+                    except ValueError:
+                        pass
+        return total
+
+    def _actualizar_indicadores(self):
+        ef = self._get_ef_declarado()
+        tj = self._get_tj_declarada()
+
+        self.lbl_ef_declarado.setText(_fmt_money(ef))
+        falta_ef = self._total_efectivo - ef
+        if falta_ef <= 0:
+            self.lbl_ind_ef.setText("\u2713 Monto completado")
+            self.lbl_ind_ef.setStyleSheet(_IND_OK)
+        else:
+            self.lbl_ind_ef.setText(f"Falta: {_fmt_money(falta_ef)}")
+            self.lbl_ind_ef.setStyleSheet(_IND_PENDING)
+
+        self.lbl_tj_declarada.setText(_fmt_money(tj))
+        falta_tj = self._total_tarjeta - tj
+        if falta_tj <= 0:
+            self.lbl_ind_tj.setText("\u2713 Monto completado")
+            self.lbl_ind_tj.setStyleSheet(_IND_OK)
+        else:
+            self.lbl_ind_tj.setText(f"Falta: {_fmt_money(falta_tj)}")
+            self.lbl_ind_tj.setStyleSheet(_IND_PENDING)
+
+        self._actualizar_btn_cerrar()
+
+    def _actualizar_btn_cerrar(self):
+        ef = self._get_ef_declarado()
+        tj = self._get_tj_declarada()
+        ef_ok = self._total_efectivo <= 0 or ef >= self._total_efectivo
+        tj_ok = self._total_tarjeta <= 0 or tj >= self._total_tarjeta
+        if "Cerrar" in self.btn_cerrar_caja.text():
+            self.btn_cerrar_caja.setEnabled(ef_ok and tj_ok)
+
+    def _on_voucher_changed(self, item):
+        if item is None:
+            return
+        row = item.row()
+        total_rows = self.tabla_vouchers.rowCount()
+        if row == total_rows - 1:
+            item_voucher = self.tabla_vouchers.item(row, 0)
+            item_monto = self.tabla_vouchers.item(row, 1)
+            has_content = (item_voucher and item_voucher.text().strip()) or (
+                item_monto and item_monto.text().strip()
+            )
+            if has_content:
+                self.tabla_vouchers.blockSignals(True)
+                self.tabla_vouchers.insertRow(total_rows)
+                self.tabla_vouchers.blockSignals(False)
+        self._actualizar_indicadores()
+
+    # ── cerrar / reabrir ───────────────────────────────────────────────────
+
+    def _cerrar_caja(self):
+        if self._id_vendedor is None:
+            return
+        ef_decl = self._get_ef_declarado()
+        tj_decl = self._get_tj_declarada()
+        monto_total = self._monto_apertura + ef_decl + tj_decl
+
+        respuesta = QMessageBox.question(
+            self,
+            "Confirmar cierre de caja",
+            f"Vendedor: {self.cmb_vendedores.currentText()}\n"
+            f"Monto apertura:     {_fmt_money(self._monto_apertura)}\n"
+            f"Efectivo declarado: {_fmt_money(ef_decl)}\n"
+            f"Tarjeta declarada:  {_fmt_money(tj_decl)}\n"
+            f"Monto total:        {_fmt_money(monto_total)}\n\n"
+            "\xbfDeseas continuar?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if respuesta != QMessageBox.Yes:
+            return
+        try:
+            cursor = self.conexion.cursor()
+            cursor.execute(
+                """
+                INSERT INTO CierreCaja
+                    (id_vendedor, fecha, totalEfectivo, totalVoucher, montoTotal)
+                SELECT ?, GETDATE(), ?, ?, ?
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM CierreCaja
+                    WHERE id_vendedor = ?
+                      AND CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
+                )
+                """,
+                (self._id_vendedor, ef_decl, tj_decl, monto_total, self._id_vendedor),
+            )
+            filas = cursor.rowcount
+            if filas == 0:
+                QMessageBox.warning(
+                    self,
+                    "Aviso",
+                    "Ya existe un cierre de caja para este vendedor hoy.",
+                )
+                return
+            self.conexion.commit()
+            QMessageBox.information(
+                self, "Listo", "Cierre de caja registrado correctamente."
+            )
+            self._reset_declaracion()
+            self.recargar()
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Error", f"No se pudo registrar el cierre de caja:\n{e}"
+            )
+
+    def _reabrir_caja(self):
+        if self._id_vendedor is None:
+            return
+        respuesta = QMessageBox.question(
+            self,
+            "Confirmar reapertura de caja",
+            f"Se eliminar\xe1 el cierre de caja del vendedor "
+            f"'{self.cmb_vendedores.currentText()}' de hoy.\n\xbfDeseas continuar?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if respuesta != QMessageBox.Yes:
+            return
+        try:
+            cursor = self.conexion.cursor()
+            cursor.execute(
+                """
+                DELETE FROM CierreCaja
+                WHERE id_cierre = (
+                    SELECT TOP 1 id_cierre
+                    FROM CierreCaja
+                    WHERE id_vendedor = ?
+                      AND CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
+                    ORDER BY fecha DESC
+                )
+                """,
+                (self._id_vendedor,),
+            )
+            self.conexion.commit()
+            QMessageBox.information(
+                self, "Listo", "La caja ha sido reabierta correctamente."
+            )
+            self.recargar()
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Error", f"No se pudo reabrir la caja:\n{e}"
+            )
+
+    # ── PDF ────────────────────────────────────────────────────────────────
 
     def _armar_html(self):
         fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+        vendedor_nombre = self.cmb_vendedores.currentText()
         filas_html = ""
         for fila in self._datos_ventas:
-            filas_html += f"""
-                <tr>
-                    <td class="num">{escape(str(fila.id_venta))}</td>
-                    <td class="txt">{escape(str(fila.cliente or ""))}</td>
-                    <td class="txt">{escape(str(fila.vendedor or ""))}</td>
-                    <td class="txt">{escape(str(fila.forma_pago or ""))}</td>
-                    <td class="num">{escape(_fmt_money(fila.total))}</td>
-                </tr>"""
+            filas_html += (
+                "<tr>"
+                f'<td class="num">{escape(str(fila[0]))}</td>'
+                f'<td class="txt">{escape(str(fila[1] or ""))}</td>'
+                f'<td class="txt">{escape(str(fila[2] or ""))}</td>'
+                f'<td class="num">{escape(_fmt_money(fila[3]))}</td>'
+                "</tr>"
+            )
 
-        return f"""
-        <html><head><style>{_PDF_CSS}</style></head><body>
-        <div class="page">
-            <div class="header">
-                <div class="brand">GALERÍA DE ARTE</div>
-                <div class="title">CORTE DE CAJA</div>
-                <div class="sub">Fecha: {escape(fecha_hoy)}</div>
-            </div>
-            <div class="line"></div>
-            <table class="info">
-                <tr>
-                    <td class="label">Monto apertura:</td>
-                    <td class="value">{escape(_fmt_money(self._monto_apertura))}</td>
-                    <td class="label">Fecha:</td>
-                    <td class="value">{escape(_fmt_fecha(self._fecha_apertura))}</td>
-                </tr>
-            </table>
-            <div class="line"></div>
-            <table class="items">
-                <thead>
-                    <tr>
-                        <th style="width:10%; text-align:right;">ID</th>
-                        <th style="width:26%;">Cliente</th>
-                        <th style="width:24%;">Vendedor</th>
-                        <th style="width:20%;">Forma de Pago</th>
-                        <th style="width:20%; text-align:right;">Total</th>
-                    </tr>
-                </thead>
-                <tbody>{filas_html}</tbody>
-            </table>
-            <table class="summary">
-                <tr>
-                    <td class="label">TOTAL VENTAS:</td>
-                    <td class="value">{escape(_fmt_money(self._total_ventas))}</td>
-                </tr>
-                <tr>
-                    <td class="label">MONTO APERTURA:</td>
-                    <td class="value">{escape(_fmt_money(self._monto_apertura))}</td>
-                </tr>
-                <tr>
-                    <td class="label">TOTAL GENERAL:</td>
-                    <td class="value">{escape(_fmt_money(self._total_general))}</td>
-                </tr>
-            </table>
-            <div class="footer">Reporte generado por Sistema Galería de Arte</div>
-        </div>
-        </body></html>"""
+        return (
+            f"<html><head><style>{_PDF_CSS}</style></head><body>"
+            '<div class="page">'
+            '<div class="header">'
+            '<div class="brand">GALER\xcdA DE ARTE</div>'
+            '<div class="title">CORTE DE CAJA</div>'
+            f'<div class="sub">Fecha: {escape(fecha_hoy)}</div>'
+            "</div>"
+            '<div class="line"></div>'
+            '<table class="info">'
+            "<tr>"
+            f'<td class="label">Vendedor:</td><td class="value">{escape(vendedor_nombre)}</td>'
+            f'<td class="label">Apertura:</td><td class="value">{escape(_fmt_money(self._monto_apertura))}</td>'
+            "</tr>"
+            "<tr>"
+            f'<td class="label">Fecha apertura:</td><td class="value">{escape(_fmt_fecha(self._fecha_apertura))}</td>'
+            "</tr>"
+            "</table>"
+            '<div class="line"></div>'
+            '<table class="items">'
+            "<thead><tr>"
+            '<th style="width:10%;text-align:right;">ID</th>'
+            '<th style="width:34%;">Cliente</th>'
+            '<th style="width:22%;">Forma de Pago</th>'
+            '<th style="width:20%;text-align:right;">Total</th>'
+            "</tr></thead>"
+            f"<tbody>{filas_html}</tbody>"
+            "</table>"
+            '<table class="summary">'
+            f'<tr><td class="label">TOTAL EFECTIVO:</td><td class="value">{escape(_fmt_money(self._total_efectivo))}</td></tr>'
+            f'<tr><td class="label">TOTAL TARJETA:</td><td class="value">{escape(_fmt_money(self._total_tarjeta))}</td></tr>'
+            f'<tr><td class="label">TOTAL VENTAS:</td><td class="value">{escape(_fmt_money(self._total_ventas))}</td></tr>'
+            "</table>"
+            '<div class="footer">Reporte generado por Sistema Galer\xeda de Arte</div>'
+            "</div></body></html>"
+        )
 
     def exportar_pdf(self):
         fecha_hoy = datetime.now().strftime("%Y%m%d")
@@ -381,67 +866,7 @@ class CorteCajaVentana(QMainWindow):
             self._armar_html(),
         )
 
-    def cerrar_caja(self):
-        respuesta = QMessageBox.question(
-            self,
-            "Confirmar cierre de caja",
-            f"Se registrará el cierre con un monto total de {_fmt_money(self._total_general)}.\n"
-            "¿Deseas continuar?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if respuesta != QMessageBox.Yes:
-            return
-        try:
-            cursor = self.conexion.cursor()
-            cursor.execute(
-                """
-                INSERT INTO CierreCaja (montoTotal, fecha)
-                SELECT ?, GETDATE()
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM CierreCaja
-                    WHERE CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
-                )
-                """,
-                (self._total_general,),
-            )
-            filas_insertadas = cursor.rowcount
-            if filas_insertadas == 0:
-                QMessageBox.warning(self, "Aviso", "Ya existe un cierre de caja registrado para hoy.")
-                return
-            self.conexion.commit()
-            QMessageBox.information(self, "Listo", "Cierre de caja registrado correctamente.")
-            self.recargar()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"No se pudo registrar el cierre de caja:\n{e}")
-
-    def reabrir_caja(self):
-        respuesta = QMessageBox.question(
-            self,
-            "Confirmar reapertura de caja",
-            "Se eliminará el último registro de cierre de caja, lo que reabrirá la caja.\n"
-            "¿Deseas continuar?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if respuesta != QMessageBox.Yes:
-            return
-        try:
-            cursor = self.conexion.cursor()
-            cursor.execute(
-                """
-                WITH ultimo AS (
-                    SELECT TOP 1 * FROM CierreCaja ORDER BY fecha DESC
-                )
-                DELETE FROM ultimo
-                """
-            )
-            self.conexion.commit()
-            QMessageBox.information(self, "Listo", "La caja ha sido reabierta correctamente.")
-            self.recargar()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"No se pudo reabrir la caja:\n{e}")
+    # ── navigation ─────────────────────────────────────────────────────────
 
     def regresar(self):
         if self.ventana_padre:
