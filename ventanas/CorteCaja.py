@@ -18,6 +18,8 @@ from ventanas.Reportes import (
     _PDF_CSS, _make_tabla, _tabla_item, _guardar_pdf, _vista_previa_pdf, _fmt_money,
 )
 
+from PySide6.QtWidgets import QDialog
+
 MAX_OPENING_AMOUNT = 999_999_999.99
 DENOMINACIONES = [1000, 500, 200, 100, 50, 20, 10, 5, 1]
 
@@ -46,6 +48,243 @@ def _sep() -> QFrame:
     f.setFixedHeight(1)
     f.setStyleSheet(f"background: {BORDE}; border: none;")
     return f
+
+
+def _armar_html_corte(
+    vendedor_nombre: str,
+    fecha_apertura,
+    monto_apertura: float,
+    fecha_cierre,
+    total_efectivo: float,
+    total_tarjeta: float,
+    total_ventas: float,
+    ef_declarado: float,
+    tj_declarada: float,
+    filas_ventas=None,
+) -> str:
+    """Genera HTML para el PDF de un corte de caja individual."""
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    filas_html = ""
+    if filas_ventas:
+        for fila in filas_ventas:
+            filas_html += (
+                "<tr>"
+                f'<td class="num">{escape(str(fila[0]))}</td>'
+                f'<td class="txt">{escape(str(fila[1] or ""))}</td>'
+                f'<td class="txt">{escape(str(fila[2] or ""))}</td>'
+                f'<td class="num">{escape(_fmt_money(fila[3]))}</td>'
+                "</tr>"
+            )
+    tabla_ventas = (
+        '<div class="line"></div>'
+        '<table class="items">'
+        "<thead><tr>"
+        '<th style="width:10%;text-align:right;">ID</th>'
+        '<th style="width:34%;">Cliente</th>'
+        '<th style="width:22%;">Forma de Pago</th>'
+        '<th style="width:20%;text-align:right;">Total</th>'
+        "</tr></thead>"
+        f"<tbody>{filas_html}</tbody>"
+        "</table>"
+        if filas_ventas else ""
+    )
+    return (
+        f"<html><head><style>{_PDF_CSS}</style></head><body>"
+        '<div class="page">'
+        '<div class="header">'
+        '<div class="brand">GALER\xcdA DE ARTE</div>'
+        '<div class="title">CORTE DE CAJA</div>'
+        f'<div class="sub">Fecha: {escape(fecha_hoy)}</div>'
+        "</div>"
+        '<div class="line"></div>'
+        '<table class="info">'
+        "<tr>"
+        f'<td class="label">Vendedor:</td><td class="value">{escape(vendedor_nombre)}</td>'
+        f'<td class="label">Apertura:</td><td class="value">{escape(_fmt_money(monto_apertura))}</td>'
+        "</tr>"
+        "<tr>"
+        f'<td class="label">Fecha apertura:</td><td class="value">{escape(_fmt_fecha(fecha_apertura))}</td>'
+        f'<td class="label">Fecha cierre:</td><td class="value">{escape(_fmt_fecha(fecha_cierre))}</td>'
+        "</tr>"
+        "</table>"
+        f"{tabla_ventas}"
+        '<table class="summary">'
+        f'<tr><td class="label">TOTAL EFECTIVO (ventas):</td><td class="value">{escape(_fmt_money(total_efectivo))}</td></tr>'
+        f'<tr><td class="label">TOTAL TARJETA (ventas):</td><td class="value">{escape(_fmt_money(total_tarjeta))}</td></tr>'
+        f'<tr><td class="label">TOTAL VENTAS:</td><td class="value">{escape(_fmt_money(total_ventas))}</td></tr>'
+        '<tr><td class="label" style="padding-top:8px;border-top:1px solid #ccc;">EFECTIVO DECLARADO:</td>'
+        f'<td class="value" style="padding-top:8px;border-top:1px solid #ccc;">{escape(_fmt_money(ef_declarado))}</td></tr>'
+        f'<tr><td class="label">TARJETA DECLARADA:</td><td class="value">{escape(_fmt_money(tj_declarada))}</td></tr>'
+        "</table>"
+        '<div class="footer">Reporte generado por Sistema Galer\xeda de Arte</div>'
+        "</div></body></html>"
+    )
+
+
+class HistorialCortesDialog(QDialog):
+    """Diálogo que muestra el historial de cortes de caja."""
+
+    def __init__(self, conexion, parent=None):
+        super().__init__(parent)
+        self.conexion = conexion
+        self.setWindowTitle("Historial de Cortes de Caja")
+        self.setMinimumSize(QSize(1000, 600))
+        self.setStyleSheet(_VENTANA_STYLE)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(14)
+
+        titulo = QLabel("Historial de Cortes de Caja")
+        titulo.setAlignment(Qt.AlignHCenter)
+        titulo.setFont(QFont("Segoe UI", 18, QFont.Weight.DemiBold))
+        layout.addWidget(titulo)
+
+        self.tabla = QTableWidget(0, 9)
+        self.tabla.setHorizontalHeaderLabels([
+            "ID", "Fecha", "Hora", "Vendedor",
+            "Total Efectivo", "Total Voucher", "Total Venta",
+            "Vista Previa", "Descargar PDF",
+        ])
+        self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla.verticalHeader().setVisible(False)
+        self.tabla.setAlternatingRowColors(True)
+        hdr = self.tabla.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(3, QHeaderView.Stretch)
+        hdr.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(7, QHeaderView.Fixed)
+        hdr.setSectionResizeMode(8, QHeaderView.Fixed)
+        self.tabla.setColumnWidth(7, 120)
+        self.tabla.setColumnWidth(8, 130)
+        self.tabla.setMinimumHeight(350)
+        layout.addWidget(self.tabla)
+
+        btn_cerrar = QPushButton("Cerrar")
+        btn_cerrar.setCursor(Qt.PointingHandCursor)
+        btn_cerrar.setFixedHeight(36)
+        btn_cerrar.setFont(QFont("Segoe UI", 10))
+        btn_cerrar.setStyleSheet(_BTN_VOLVER_STYLE)
+        btn_cerrar.clicked.connect(self.accept)
+        layout.addWidget(btn_cerrar, alignment=Qt.AlignRight)
+
+        self._cargar_datos()
+
+    def _cargar_datos(self):
+        try:
+            cursor = self.conexion.cursor()
+            cursor.execute(
+                """
+                SELECT cc.id_cierre, cc.fecha, v.nombre, cc.id_vendedor,
+                       cc.totalEfectivo, cc.totalVoucher, cc.montoTotal
+                FROM CierreCaja cc
+                LEFT JOIN Vendedores v ON v.id_vendedor = cc.id_vendedor
+                ORDER BY cc.fecha DESC
+                """
+            )
+            rows = cursor.fetchall()
+            self.tabla.setRowCount(0)
+            self._cortes = []
+            for fila in rows:
+                id_cierre = int(fila[0])
+                fecha_dt = fila[1]
+                fecha_str = fecha_dt.strftime("%Y-%m-%d") if fecha_dt else "-"
+                hora_str = fecha_dt.strftime("%H:%M:%S") if fecha_dt else "-"
+                vendedor = str(fila[2]) if fila[2] else "-"
+                id_vendedor = int(fila[3]) if fila[3] is not None else None
+                ef = float(fila[4] or 0)
+                vou = float(fila[5] or 0)
+                total = float(fila[6] or 0)
+
+                # Fetch apertura info for this vendor on the cierre date
+                apertura_fecha = None
+                apertura_monto = 0.0
+                if id_vendedor is not None and fecha_dt is not None:
+                    try:
+                        cur2 = self.conexion.cursor()
+                        cur2.execute(
+                            """
+                            SELECT TOP 1 monto, fecha FROM AperturaCaja
+                            WHERE id_vendedor = ?
+                              AND CAST(fecha AS DATE) = CAST(? AS DATE)
+                            ORDER BY id_apertura DESC
+                            """,
+                            (id_vendedor, fecha_dt),
+                        )
+                        ap = cur2.fetchone()
+                        if ap:
+                            apertura_monto = float(ap[0] or 0)
+                            apertura_fecha = ap[1]
+                    except Exception:
+                        pass
+
+                self._cortes.append({
+                    "id_cierre": id_cierre,
+                    "fecha_dt": fecha_dt,
+                    "fecha_str": fecha_str,
+                    "hora_str": hora_str,
+                    "vendedor": vendedor,
+                    "ef": ef,
+                    "vou": vou,
+                    "total": total,
+                    "apertura_fecha": apertura_fecha,
+                    "apertura_monto": apertura_monto,
+                })
+                row_idx = self.tabla.rowCount()
+                self.tabla.insertRow(row_idx)
+                for col, val in enumerate([
+                    str(id_cierre), fecha_str, hora_str, vendedor,
+                    _fmt_money(ef), _fmt_money(vou), _fmt_money(total),
+                ]):
+                    it = _tabla_item(
+                        val,
+                        Qt.AlignRight | Qt.AlignVCenter if col in (0, 4, 5, 6) else Qt.AlignLeft | Qt.AlignVCenter,
+                    )
+                    self.tabla.setItem(row_idx, col, it)
+
+                btn_preview = QPushButton("Vista Previa")
+                btn_preview.setCursor(Qt.PointingHandCursor)
+                btn_preview.setStyleSheet(_BTN_PREVIEW_STYLE)
+                btn_preview.clicked.connect(lambda _, i=row_idx: self._preview(i))
+                self.tabla.setCellWidget(row_idx, 7, btn_preview)
+
+                btn_pdf = QPushButton("Descargar PDF")
+                btn_pdf.setCursor(Qt.PointingHandCursor)
+                btn_pdf.setStyleSheet(_BTN_PDF_STYLE)
+                btn_pdf.clicked.connect(lambda _, i=row_idx: self._exportar(i))
+                self.tabla.setCellWidget(row_idx, 8, btn_pdf)
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo cargar el historial:\n{e}")
+
+    def _get_html(self, idx: int) -> str:
+        corte = self._cortes[idx]
+        return _armar_html_corte(
+            vendedor_nombre=corte["vendedor"],
+            fecha_apertura=corte["apertura_fecha"],
+            monto_apertura=corte["apertura_monto"],
+            fecha_cierre=corte["fecha_dt"],
+            total_efectivo=corte["ef"],
+            total_tarjeta=corte["vou"],
+            total_ventas=corte["total"],
+            ef_declarado=corte["ef"],
+            tj_declarada=corte["vou"],
+        )
+
+    def _preview(self, idx: int):
+        corte = self._cortes[idx]
+        nombre_arch = f"corte_caja_{corte['id_cierre']}.pdf"
+        _vista_previa_pdf(self, "Corte de Caja", nombre_arch, self._get_html(idx))
+
+    def _exportar(self, idx: int):
+        corte = self._cortes[idx]
+        nombre_arch = f"corte_caja_{corte['id_cierre']}.pdf"
+        _guardar_pdf(self, "Corte de Caja", nombre_arch, self._get_html(idx))
 
 
 class CorteCajaVentana(QMainWindow):
@@ -207,6 +446,13 @@ class CorteCajaVentana(QMainWindow):
         self.btn_cerrar_caja.setStyleSheet(_BTN_PDF_STYLE)
         self.btn_cerrar_caja.setEnabled(False)
 
+        btn_historial = QPushButton("\U0001f4cb Historial de Cortes")
+        btn_historial.setCursor(Qt.PointingHandCursor)
+        btn_historial.setFixedHeight(40)
+        btn_historial.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        btn_historial.setStyleSheet(_BTN_PREVIEW_STYLE)
+        btn_historial.clicked.connect(self._ver_historial)
+
         btn_volver = QPushButton("Volver")
         btn_volver.setCursor(Qt.PointingHandCursor)
         btn_volver.setFixedHeight(40)
@@ -214,7 +460,7 @@ class CorteCajaVentana(QMainWindow):
         btn_volver.setStyleSheet(_BTN_VOLVER_STYLE)
         btn_volver.clicked.connect(self.regresar)
 
-        for w in (self.btn_preview, self.btn_pdf, self.btn_cerrar_caja, btn_volver):
+        for w in (self.btn_preview, self.btn_pdf, self.btn_cerrar_caja, btn_historial, btn_volver):
             acc.addWidget(w)
             acc.addSpacing(8)
         content.addLayout(acc)
@@ -798,54 +1044,19 @@ class CorteCajaVentana(QMainWindow):
     # ── PDF ────────────────────────────────────────────────────────────────
 
     def _armar_html(self):
-        fecha_hoy = datetime.now().strftime("%Y-%m-%d")
-        vendedor_nombre = self.cmb_vendedores.currentText()
-        filas_html = ""
-        for fila in self._datos_ventas:
-            filas_html += (
-                "<tr>"
-                f'<td class="num">{escape(str(fila[0]))}</td>'
-                f'<td class="txt">{escape(str(fila[1] or ""))}</td>'
-                f'<td class="txt">{escape(str(fila[2] or ""))}</td>'
-                f'<td class="num">{escape(_fmt_money(fila[3]))}</td>'
-                "</tr>"
-            )
-
-        return (
-            f"<html><head><style>{_PDF_CSS}</style></head><body>"
-            '<div class="page">'
-            '<div class="header">'
-            '<div class="brand">GALER\xcdA DE ARTE</div>'
-            '<div class="title">CORTE DE CAJA</div>'
-            f'<div class="sub">Fecha: {escape(fecha_hoy)}</div>'
-            "</div>"
-            '<div class="line"></div>'
-            '<table class="info">'
-            "<tr>"
-            f'<td class="label">Vendedor:</td><td class="value">{escape(vendedor_nombre)}</td>'
-            f'<td class="label">Apertura:</td><td class="value">{escape(_fmt_money(self._monto_apertura))}</td>'
-            "</tr>"
-            "<tr>"
-            f'<td class="label">Fecha apertura:</td><td class="value">{escape(_fmt_fecha(self._fecha_apertura))}</td>'
-            "</tr>"
-            "</table>"
-            '<div class="line"></div>'
-            '<table class="items">'
-            "<thead><tr>"
-            '<th style="width:10%;text-align:right;">ID</th>'
-            '<th style="width:34%;">Cliente</th>'
-            '<th style="width:22%;">Forma de Pago</th>'
-            '<th style="width:20%;text-align:right;">Total</th>'
-            "</tr></thead>"
-            f"<tbody>{filas_html}</tbody>"
-            "</table>"
-            '<table class="summary">'
-            f'<tr><td class="label">TOTAL EFECTIVO:</td><td class="value">{escape(_fmt_money(self._total_efectivo))}</td></tr>'
-            f'<tr><td class="label">TOTAL TARJETA:</td><td class="value">{escape(_fmt_money(self._total_tarjeta))}</td></tr>'
-            f'<tr><td class="label">TOTAL VENTAS:</td><td class="value">{escape(_fmt_money(self._total_ventas))}</td></tr>'
-            "</table>"
-            '<div class="footer">Reporte generado por Sistema Galer\xeda de Arte</div>'
-            "</div></body></html>"
+        ef_declarado = self._get_ef_declarado()
+        tj_declarada = self._get_tj_declarada()
+        return _armar_html_corte(
+            vendedor_nombre=self.cmb_vendedores.currentText(),
+            fecha_apertura=self._fecha_apertura,
+            monto_apertura=self._monto_apertura,
+            fecha_cierre=None,
+            total_efectivo=self._total_efectivo,
+            total_tarjeta=self._total_tarjeta,
+            total_ventas=self._total_ventas,
+            ef_declarado=ef_declarado,
+            tj_declarada=tj_declarada,
+            filas_ventas=self._datos_ventas,
         )
 
     def exportar_pdf(self):
@@ -865,6 +1076,10 @@ class CorteCajaVentana(QMainWindow):
             f"corte_caja_{fecha_hoy}.pdf",
             self._armar_html(),
         )
+
+    def _ver_historial(self):
+        dlg = HistorialCortesDialog(self.conexion, self)
+        dlg.exec()
 
     # ── navigation ─────────────────────────────────────────────────────────
 
