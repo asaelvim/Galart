@@ -1152,8 +1152,8 @@ class CorteCajaVentana(QMainWindow):
             ef_declarado=ef_declarado,
             tj_declarada=tj_declarada,
             filas_ventas=self._datos_ventas,
-            ef_desglose=ef_desglose or None,
-            vouchers=vouchers or None,
+            ef_desglose=ef_desglose,
+            vouchers=vouchers,
         )
 
     def exportar_pdf(self):
