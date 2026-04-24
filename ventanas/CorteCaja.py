@@ -89,13 +89,13 @@ class CorteCajaVentana(QMainWindow):
         fila_apertura.addWidget(self.lbl_apertura)
         fila_apertura.addStretch(1)
 
-        btn_editar = QPushButton("Editar")
-        btn_editar.setCursor(Qt.PointingHandCursor)
-        btn_editar.setFixedHeight(36)
-        btn_editar.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
-        btn_editar.setStyleSheet(_BTN_PREVIEW_STYLE)
-        btn_editar.clicked.connect(self.editar_apertura)
-        fila_apertura.addWidget(btn_editar)
+        self.btn_editar = QPushButton("Editar")
+        self.btn_editar.setCursor(Qt.PointingHandCursor)
+        self.btn_editar.setFixedHeight(36)
+        self.btn_editar.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
+        self.btn_editar.setStyleSheet(_BTN_PREVIEW_STYLE)
+        self.btn_editar.clicked.connect(self.editar_apertura)
+        fila_apertura.addWidget(self.btn_editar)
         content.addLayout(fila_apertura)
 
         self.tabla = _make_tabla(["ID", "Cliente", "Vendedor", "Forma de Pago", "Total"])
@@ -128,12 +128,12 @@ class CorteCajaVentana(QMainWindow):
         self.btn_pdf.setEnabled(False)
         self.btn_pdf.clicked.connect(self.exportar_pdf)
 
-        btn_cerrar_caja = QPushButton("🔒 Cerrar Caja")
-        btn_cerrar_caja.setCursor(Qt.PointingHandCursor)
-        btn_cerrar_caja.setFixedHeight(40)
-        btn_cerrar_caja.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
-        btn_cerrar_caja.setStyleSheet(_BTN_PDF_STYLE)
-        btn_cerrar_caja.clicked.connect(self.cerrar_caja)
+        self.btn_cerrar_caja = QPushButton("🔒 Cerrar Caja")
+        self.btn_cerrar_caja.setCursor(Qt.PointingHandCursor)
+        self.btn_cerrar_caja.setFixedHeight(40)
+        self.btn_cerrar_caja.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        self.btn_cerrar_caja.setStyleSheet(_BTN_PDF_STYLE)
+        self.btn_cerrar_caja.clicked.connect(self.cerrar_caja)
 
         btn_volver = QPushButton("Volver")
         btn_volver.setCursor(Qt.PointingHandCursor)
@@ -146,12 +146,27 @@ class CorteCajaVentana(QMainWindow):
         acciones.addSpacing(8)
         acciones.addWidget(self.btn_pdf)
         acciones.addSpacing(8)
-        acciones.addWidget(btn_cerrar_caja)
+        acciones.addWidget(self.btn_cerrar_caja)
         acciones.addSpacing(8)
         acciones.addWidget(btn_volver)
         content.addLayout(acciones)
 
         self.recargar()
+
+    def _caja_cerrada_hoy(self) -> bool:
+        try:
+            cursor = self.conexion.cursor()
+            cursor.execute(
+                """
+                SELECT COUNT(1)
+                FROM CierreCaja
+                WHERE CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
+                """
+            )
+            row = cursor.fetchone()
+            return bool(row and row[0])
+        except Exception:
+            return False
 
     def _asegurar_apertura_hoy(self):
         cursor = self.conexion.cursor()
@@ -232,6 +247,16 @@ class CorteCajaVentana(QMainWindow):
             hay_datos = bool(self._datos_ventas)
             self.btn_pdf.setEnabled(hay_datos)
             self.btn_preview.setEnabled(hay_datos)
+
+            cerrada = self._caja_cerrada_hoy()
+            self.btn_cerrar_caja.setEnabled(not cerrada)
+            self.btn_editar.setEnabled(not cerrada)
+            if cerrada:
+                self.btn_cerrar_caja.setToolTip("La caja ya fue cerrada hoy.")
+                self.btn_editar.setToolTip("La caja ya fue cerrada hoy.")
+            else:
+                self.btn_cerrar_caja.setToolTip("")
+                self.btn_editar.setToolTip("")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo cargar el corte de caja:\n{e}")
 
