@@ -19,7 +19,7 @@ RE_NUMEROS = re.compile(r"^[0-9]+$")
 RE_PRECIO = re.compile(r"^[0-9]*\.?[0-9]*$")
 RE_TITULO = re.compile(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s]+$")
 RE_DIRECCION = re.compile(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s#\-.,]+$")
-RE_VENCIMIENTO = re.compile(r"\d{2}/\d{2}")
+RE_VENCIMIENTO = re.compile(r"^\d{2}/\d{2}$")
 
 
 # ---------------------------------------------------------------------------
@@ -354,7 +354,7 @@ class TestValidacionHorasExhibicion(unittest.TestCase):
     def test_hora_fin_menor_invalida(self):
         self.assertFalse(validar_horas_misma_fecha((15, 0), (10, 0)))
 
-    def test_hora_fin_mismo_minuto_menor_invalido(self):
+    def test_hora_fin_minuto_menor_invalido(self):
         self.assertFalse(validar_horas_misma_fecha((9, 45), (9, 30)))
 
 
