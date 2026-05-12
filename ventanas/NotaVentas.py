@@ -1,3 +1,7 @@
+import os
+import subprocess
+import sys
+import tempfile
 from html import escape
 
 from PySide6.QtCore import Qt, QSize, QDate, QSizeF, QMarginsF
@@ -292,6 +296,35 @@ class NotaVentasVentana(QMainWindow):
         acciones = QHBoxLayout()
         acciones.addStretch(1)
 
+        self.btn_preview = QPushButton("Vista Previa")
+        self.btn_preview.setCursor(Qt.PointingHandCursor)
+        self.btn_preview.setFixedHeight(40)
+        self.btn_preview.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        self.btn_preview.setStyleSheet(f"""
+            QPushButton {{
+                background: {SUPERFICIE};
+                color: {PRIMARIO};
+                border: 1px solid {PRIMARIO};
+                border-radius: 10px;
+                padding: 8px 16px;
+            }}
+            QPushButton:hover {{
+                background: {PRIMARIO};
+                color: white;
+            }}
+            QPushButton:pressed {{
+                background: {ACENTO};
+                color: {TEXTO};
+            }}
+            QPushButton:disabled {{
+                background: {BORDE_BOTON};
+                color: {DESACTIVADO};
+                border: 1px solid {BORDE_BOTON};
+            }}
+        """)
+        self.btn_preview.setEnabled(False)
+        self.btn_preview.clicked.connect(self.vista_previa_pdf)
+
         self.btn_pdf = QPushButton("Generar PDF")
         self.btn_pdf.setCursor(Qt.PointingHandCursor)
         self.btn_pdf.setFixedHeight(40)
@@ -336,6 +369,8 @@ class NotaVentasVentana(QMainWindow):
         """)
         btn_volver.clicked.connect(self.regresar)
 
+        acciones.addWidget(self.btn_preview)
+        acciones.addSpacing(8)
         acciones.addWidget(self.btn_pdf)
         acciones.addSpacing(8)
         acciones.addWidget(btn_volver)
@@ -488,6 +523,7 @@ class NotaVentasVentana(QMainWindow):
                     self.tabla_detalle.setItem(row, col, item)
 
             self.btn_pdf.setEnabled(True)
+            self.btn_preview.setEnabled(True)
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo cargar el detalle:\n{e}")
@@ -512,6 +548,28 @@ class NotaVentasVentana(QMainWindow):
             QMessageBox.information(self, "Listo", f"PDF generado correctamente:\n{ruta}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo generar el PDF:\n{e}")
+
+    def vista_previa_pdf(self):
+        if not self.venta_actual:
+            QMessageBox.information(self, "Sin selección", "Selecciona una venta primero.")
+            return
+        try:
+            tmp = tempfile.NamedTemporaryFile(
+                suffix=".pdf",
+                prefix=f"nota_venta_{self.venta_actual.id_venta}_preview_",
+                delete=False,
+            )
+            ruta = tmp.name
+            tmp.close()
+            self._crear_pdf_carta(ruta)
+            if sys.platform.startswith("win"):
+                os.startfile(ruta)
+            elif sys.platform.startswith("darwin"):
+                subprocess.Popen(["open", ruta])
+            else:
+                subprocess.Popen(["xdg-open", ruta])
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo generar la vista previa:\n{e}")
 
     def _crear_pdf_carta(self, ruta_pdf):
         if not self.venta_actual:
@@ -764,8 +822,7 @@ class NotaVentasVentana(QMainWindow):
         self.lbl_total.setText("Total: -")
         self.tabla_detalle.setRowCount(0)
         self.btn_pdf.setEnabled(False)
-
-    def regresar(self):
+        self.btn_preview.setEnabled(False)
         self.hide()
         if self.ventana_padre is not None:
             self.ventana_padre.show()
