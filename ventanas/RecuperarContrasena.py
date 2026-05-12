@@ -5,8 +5,8 @@ from contextlib import contextmanager
 
 from config.conexion import obtener_conexion
 
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QFont
+from PySide6.QtCore import Qt, QUrl, QRegularExpression
+from PySide6.QtGui import QDesktopServices, QFont, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QDialog, QFrame, QLabel, QLineEdit,
     QMessageBox, QPushButton, QVBoxLayout, QWidget
@@ -84,6 +84,9 @@ class RecuperarContrasenaVentana(QDialog):
         self.txtTelefono.setPlaceholderText("Teléfono (ej. 5512345678)")
         self.txtTelefono.setFixedWidth(320)
         self.txtTelefono.setFixedHeight(46)
+        self.txtTelefono.setValidator(
+            QRegularExpressionValidator(QRegularExpression(r"^[0-9]+$"))
+        )
 
         # BOTONES
         self.btnVerificar = QPushButton("Verificar")
