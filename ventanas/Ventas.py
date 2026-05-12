@@ -15,7 +15,7 @@ from ventanas.Artistas import ArtistasVentana
 from ventanas.Pinturas import PinturasVentana
 from ventanas.Cotizaciones import CotizacionesVentana
 from ventanas.RealizarVenta import RealizarVentaDialog
-from modulos.PdfUtils import guardar_pdf as _guardar_pdf_utils, vista_previa_pdf as _preview_pdf_utils, html_tabla_widget
+from modulos.PdfUtils import guardar_pdf, vista_previa_pdf, html_tabla_widget
 
 from PySide6.QtCore import Qt, QDate, QMarginsF, QRegularExpression
 from PySide6.QtGui import QFont, QPainter, QPdfWriter, QPageSize, QPageLayout, QRegularExpressionValidator, QTextDocument
@@ -1152,12 +1152,12 @@ class VentasVentana(QMainWindow):
         event.accept()
 
     def exportar_pdf(self) -> None:
-        _guardar_pdf_utils(self, "Gestión de Ventas", "ventas.pdf",
-                           html_tabla_widget(self.ventas_table, "LISTADO DE VENTAS"))
+        guardar_pdf(self, "Gestión de Ventas", "ventas.pdf",
+                    html_tabla_widget(self.ventas_table, "LISTADO DE VENTAS"))
 
     def vista_previa_pdf(self) -> None:
-        _preview_pdf_utils(self, "Gestión de Ventas", "ventas.pdf",
-                           html_tabla_widget(self.ventas_table, "LISTADO DE VENTAS"))
+        vista_previa_pdf(self, "Gestión de Ventas", "ventas.pdf",
+                         html_tabla_widget(self.ventas_table, "LISTADO DE VENTAS"))
 
     def showEvent(self, event):
         super().showEvent(event)
