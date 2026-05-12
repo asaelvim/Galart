@@ -306,7 +306,7 @@ class ArtistasVentana(QMainWindow):
             QRegularExpression(r"^[0-9]+$")
         )
         validator_biografia = QRegularExpressionValidator(
-            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s.,;:\-'\"()\!\?\/]+$")
+            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s.,;:\-'\"()!?/]+$")
         )
         self.txtNombre.setValidator(validator_letras)
         self.txtPais.setValidator(validator_letras)
