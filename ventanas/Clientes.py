@@ -24,6 +24,7 @@ Ejecuta:
 
 from __future__ import annotations
 
+import re
 import sys
 from contextlib import contextmanager
 from typing import List, Optional, Tuple
@@ -49,6 +50,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+
+# =========================
+# Validación de correo electrónico
+# =========================
+_EMAIL_RE = re.compile(r"^[a-zA-Z0-9_.+\-]+@[a-zA-Z0-9\-]+(\.[a-zA-Z0-9\-]+)*\.[a-zA-Z]{2,}$")
 
 # =========================
 # Paleta Opción A (Minimal Luxe)
@@ -330,8 +336,12 @@ class ClientesVentana(QMainWindow):
         validator_numeros = QRegularExpressionValidator(
             QRegularExpression(r"^[0-9]+$")
         )
+        validator_correo = QRegularExpressionValidator(
+            QRegularExpression(r"^[a-zA-Z0-9_.+\-@]+$")
+        )
         self.txtNombre.setValidator(validator_letras)
         self.txtTelefono.setValidator(validator_numeros)
+        self.txtCorreo.setValidator(validator_correo)
         self.txtBuscarID.setValidator(validator_numeros)
         self.txtBuscar.setValidator(validator_letras)
 
@@ -618,6 +628,9 @@ class ClientesVentana(QMainWindow):
         if not nombre or not correo or not telefono:
             self._show_error("Validación", "Completa Nombre, Correo y Teléfono.")
             return
+        if not _EMAIL_RE.match(correo):
+            self._show_error("Validación", "El correo no tiene un formato válido (ejemplo: usuario@dominio.com).")
+            return
         try:
             self.repo.insert(nombre, correo, telefono)
             self.load_all()
@@ -632,6 +645,9 @@ class ClientesVentana(QMainWindow):
         nombre, correo, telefono = self._get_form_values()
         if not nombre or not correo or not telefono:
             self._show_error("Validación", "Completa Nombre, Correo y Teléfono.")
+            return
+        if not _EMAIL_RE.match(correo):
+            self._show_error("Validación", "El correo no tiene un formato válido (ejemplo: usuario@dominio.com).")
             return
         try:
             self.repo.update(self.current_id, nombre, correo, telefono)

@@ -22,6 +22,7 @@ Ejecuta:
 
 from __future__ import annotations
 
+import re
 import sys
 from contextlib import contextmanager
 from typing import List, Optional, Tuple
@@ -47,6 +48,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+
+# =========================
+# Validación de correo electrónico
+# =========================
+_EMAIL_RE = re.compile(r"^[a-zA-Z0-9_.+\-]+@[a-zA-Z0-9\-]+(\.[a-zA-Z0-9\-]+)*\.[a-zA-Z]{2,}$")
 
 # =========================
 # Paleta Opción A (Minimal Luxe)
@@ -285,8 +291,12 @@ class ProveedoresWindow(QMainWindow):
         validator_direccion = QRegularExpressionValidator(
             QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s#\-.,]+$")
         )
+        validator_correo = QRegularExpressionValidator(
+            QRegularExpression(r"^[a-zA-Z0-9_.+\-@]+$")
+        )
         self.txtNombre.setValidator(validator_letras)
         self.txtTelefono.setValidator(validator_numeros)
+        self.txtCorreo.setValidator(validator_correo)
         self.txtDireccion.setValidator(validator_direccion)
         self.txtBuscarID.setValidator(validator_numeros)
         self.txtBuscarNombre.setValidator(validator_letras)
@@ -584,6 +594,9 @@ class ProveedoresWindow(QMainWindow):
         if not nombre or not telefono or not correo or not direccion:
             self._show_error("Validación", "Completa Nombre, Teléfono, Correo y Dirección.")
             return
+        if not _EMAIL_RE.match(correo):
+            self._show_error("Validación", "El correo no tiene un formato válido (ejemplo: usuario@dominio.com).")
+            return
         try:
             self.repo.insert(nombre, telefono, correo, direccion)
             self.load_all()
@@ -598,6 +611,9 @@ class ProveedoresWindow(QMainWindow):
         nombre, telefono, correo, direccion = self._get_form_values()
         if not nombre or not telefono or not correo or not direccion:
             self._show_error("Validación", "Completa Nombre, Teléfono, Correo y Dirección.")
+            return
+        if not _EMAIL_RE.match(correo):
+            self._show_error("Validación", "El correo no tiene un formato válido (ejemplo: usuario@dominio.com).")
             return
         try:
             self.repo.update(self.current_id, nombre, telefono, correo, direccion)
