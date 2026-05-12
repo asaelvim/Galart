@@ -288,6 +288,9 @@ class ProveedoresWindow(QMainWindow):
         validator_numeros = QRegularExpressionValidator(
             QRegularExpression(r"^[0-9]+$")
         )
+        validator_telefono = QRegularExpressionValidator(
+            QRegularExpression(r"^\d{0,10}$")
+        )
         validator_direccion = QRegularExpressionValidator(
             QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s#\-.,]+$")
         )
@@ -295,7 +298,7 @@ class ProveedoresWindow(QMainWindow):
             QRegularExpression(r"^[a-zA-Z0-9_.+\-@]+$")
         )
         self.txtNombre.setValidator(validator_letras)
-        self.txtTelefono.setValidator(validator_numeros)
+        self.txtTelefono.setValidator(validator_telefono)
         self.txtCorreo.setValidator(validator_correo)
         self.txtDireccion.setValidator(validator_direccion)
         self.txtBuscarID.setValidator(validator_numeros)
@@ -594,6 +597,9 @@ class ProveedoresWindow(QMainWindow):
         if not nombre or not telefono or not correo or not direccion:
             self._show_error("Validación", "Completa Nombre, Teléfono, Correo y Dirección.")
             return
+        if len(telefono) != 10:
+            self._show_error("Validación", "El teléfono debe tener exactamente 10 dígitos.")
+            return
         if not _EMAIL_RE.match(correo):
             self._show_error("Validación", "El correo no tiene un formato válido (ejemplo: usuario@dominio.com).")
             return
@@ -611,6 +617,9 @@ class ProveedoresWindow(QMainWindow):
         nombre, telefono, correo, direccion = self._get_form_values()
         if not nombre or not telefono or not correo or not direccion:
             self._show_error("Validación", "Completa Nombre, Teléfono, Correo y Dirección.")
+            return
+        if len(telefono) != 10:
+            self._show_error("Validación", "El teléfono debe tener exactamente 10 dígitos.")
             return
         if not _EMAIL_RE.match(correo):
             self._show_error("Validación", "El correo no tiene un formato válido (ejemplo: usuario@dominio.com).")

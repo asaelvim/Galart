@@ -85,7 +85,7 @@ class RecuperarContrasenaVentana(QDialog):
         self.txtTelefono.setFixedWidth(320)
         self.txtTelefono.setFixedHeight(46)
         self.txtTelefono.setValidator(
-            QRegularExpressionValidator(QRegularExpression(r"^[0-9]+$"))
+            QRegularExpressionValidator(QRegularExpression(r"^\d{0,10}$"))
         )
 
         # BOTONES
@@ -171,6 +171,10 @@ class RecuperarContrasenaVentana(QDialog):
 
         if not usuario or not telefono_ingresado:
             QMessageBox.warning(self, "Validación", "Por favor completa todos los campos.")
+            return
+
+        if len(telefono_ingresado) != 10:
+            QMessageBox.warning(self, "Validación", "El teléfono debe tener exactamente 10 dígitos.")
             return
 
         try:
