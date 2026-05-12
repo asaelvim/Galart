@@ -342,6 +342,14 @@ class VendedoresVentana(QMainWindow):
         self.txtBuscar.setValidator(validator_letras)
 
         # Table
+        table_frame = QFrame()
+        table_frame.setObjectName("TableFrame")
+        tf = QVBoxLayout(table_frame)
+        tf.setContentsMargins(12, 12, 12, 12)
+
+        self.table = QTableWidget(0, 5)
+        self.table.setObjectName("Table")
+        self.table.setHorizontalHeaderLabels(["ID", "Nombre", "Correo", "Teléfono", "Activo"])
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
