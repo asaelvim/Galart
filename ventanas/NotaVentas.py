@@ -823,6 +823,8 @@ class NotaVentasVentana(QMainWindow):
         self.tabla_detalle.setRowCount(0)
         self.btn_pdf.setEnabled(False)
         self.btn_preview.setEnabled(False)
+
+    def regresar(self):
         self.hide()
         if self.ventana_padre is not None:
             self.ventana_padre.show()
