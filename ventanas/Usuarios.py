@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 from contextlib import contextmanager
 from typing import List, Optional, Tuple
@@ -26,6 +27,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+
+# =========================
+# Validación de correo electrónico
+# =========================
+_EMAIL_RE = re.compile(r"^[a-zA-Z0-9_.+\-]+@[a-zA-Z0-9\-]+(\.[a-zA-Z0-9\-]+)*\.[a-zA-Z]{2,}$")
 
 # =========================
 # Paleta Opción A (Minimal Luxe)
@@ -339,8 +345,12 @@ class UsuariosVentana(QMainWindow):
         validator_numeros = QRegularExpressionValidator(
             QRegularExpression(r"^[0-9]+$")
         )
+        validator_email = QRegularExpressionValidator(
+            QRegularExpression(r"^[a-zA-Z0-9_.+\-@]+$")
+        )
         self.txtNombre.setValidator(validator_letras)
         self.txtTelefono.setValidator(validator_numeros)
+        self.txtEmail.setValidator(validator_email)
         self.txtBuscarID.setValidator(validator_numeros)
         self.txtBuscar.setValidator(validator_letras)
 
@@ -636,6 +646,9 @@ class UsuariosVentana(QMainWindow):
         if not nombre or not usuario or not contrasena or not email:
             self._show_error("Validación", "Completa Nombre, Usuario, Contraseña y Email.")
             return
+        if not _EMAIL_RE.match(email):
+            self._show_error("Validación", "El email no tiene un formato válido (ejemplo: usuario@dominio.com).")
+            return
         try:
             self.repo.insert(nombre, usuario, contrasena, email, telefono, id_tipo, activo)
             self.load_all()
@@ -650,6 +663,9 @@ class UsuariosVentana(QMainWindow):
         nombre, usuario, contrasena, email, telefono, id_tipo, activo = self._get_form_values()
         if not nombre or not usuario or not contrasena or not email:
             self._show_error("Validación", "Completa Nombre, Usuario, Contraseña y Email.")
+            return
+        if not _EMAIL_RE.match(email):
+            self._show_error("Validación", "El email no tiene un formato válido (ejemplo: usuario@dominio.com).")
             return
         try:
             self.repo.update(self.current_id, nombre, usuario, contrasena, email, telefono, id_tipo, activo)
