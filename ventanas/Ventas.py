@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import tempfile
 import sys
 from contextlib import contextmanager
+from html import escape
 from typing import Any, Dict, List, Optional, Tuple
 
 from config.conexion import obtener_conexion
@@ -12,13 +16,14 @@ from ventanas.Pinturas import PinturasVentana
 from ventanas.Cotizaciones import CotizacionesVentana
 from ventanas.RealizarVenta import RealizarVentaDialog
 
-from PySide6.QtCore import Qt, QDate, QRegularExpression
-from PySide6.QtGui import QFont, QRegularExpressionValidator
+from PySide6.QtCore import Qt, QDate, QMarginsF, QRegularExpression
+from PySide6.QtGui import QFont, QPainter, QPdfWriter, QPageSize, QPageLayout, QRegularExpressionValidator, QTextDocument
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QDateEdit,
     QDialog,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -50,6 +55,42 @@ BTN_BG = "#F6F1EA"
 BTN_BORDER = "#DED6CC"
 BTN_TEXT = "#2A2A2A"
 
+_PDF_CSS = """
+    body {
+        font-family: "DejaVu Sans", Arial, sans-serif;
+        font-size: 11pt;
+        color: #1F1F1F;
+        margin: 0;
+        padding: 0;
+    }
+    .header { text-align: center; margin-bottom: 16px; }
+    .brand { font-size: 18pt; font-weight: bold; letter-spacing: 1px; }
+    .title { font-size: 13pt; font-weight: bold; margin-top: 4px; }
+    .sub { font-size: 9pt; color: #5B5B5B; margin-top: 2px; }
+    .line { border-top: 1px solid #E7E1D8; margin: 12px 0; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .info td { padding: 4px 0; vertical-align: top; word-wrap: break-word; }
+    .info .label { width: 14%; font-weight: bold; }
+    .info .value { width: 36%; }
+    .items thead th {
+        text-align: left; font-size: 10pt;
+        border-bottom: 1px solid #1F1F1F; padding: 8px 8px 6px 8px;
+    }
+    .items td {
+        border-bottom: 1px dotted #DED6CC;
+        padding: 8px 8px; vertical-align: top; word-wrap: break-word;
+    }
+    .txt { word-break: break-word; }
+    .num { text-align: right; white-space: nowrap; }
+    .summary { margin-top: 16px; width: 100%; border-collapse: collapse; }
+    .summary td { padding: 4px 8px; }
+    .summary .label { width: 82%; text-align: right; font-weight: bold; font-size: 12pt; }
+    .summary .value { width: 18%; text-align: right; font-size: 13pt; font-weight: bold; white-space: nowrap; }
+    .footer { margin-top: 22px; text-align: center; font-size: 9pt; color: #5B5B5B; }
+"""
+
+_IVA_RATE = 0.16
+
 
 @contextmanager
 def db():
@@ -67,6 +108,384 @@ def db():
 
 def _exec(cur, sql, params=()):
     cur.execute(sql, params)
+
+
+# =========================
+# Diálogo post-venta: Nota de Venta / Factura
+# =========================
+class _PostVentaDialog(QDialog):
+    """Diálogo que aparece tras completar una venta con opciones de documento PDF."""
+
+    def __init__(self, venta_id: int, forma_pago: str, cambio: float, parent=None):
+        super().__init__(parent)
+        self.venta_id = venta_id
+        self._venta = None
+        self._detalles: List[Any] = []
+
+        self.setWindowTitle("Venta concretada")
+        self.setModal(True)
+        self.setMinimumWidth(480)
+        self.setObjectName("PostVentaDialog")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(12)
+
+        lbl_titulo = QLabel("✓ Venta concretada")
+        lbl_titulo.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+        lbl_titulo.setAlignment(Qt.AlignHCenter)
+        layout.addWidget(lbl_titulo)
+
+        msg = f"Venta #{venta_id} registrada correctamente."
+        if forma_pago == "efectivo" and cambio > 0:
+            msg += f"\nCambio entregado: ${cambio:.2f}"
+        lbl_info = QLabel(msg)
+        lbl_info.setAlignment(Qt.AlignHCenter)
+        lbl_info.setWordWrap(True)
+        layout.addWidget(lbl_info)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setFixedHeight(1)
+        layout.addWidget(sep)
+
+        lbl_docs = QLabel("Documentos de la venta:")
+        lbl_docs.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
+        layout.addWidget(lbl_docs)
+
+        nota_row = QHBoxLayout()
+        nota_row.addWidget(QLabel("Nota de Venta:"))
+        nota_row.addStretch(1)
+        btn_prev_nota = QPushButton("Vista Previa")
+        btn_prev_nota.setObjectName("DocBtn")
+        btn_prev_nota.setCursor(Qt.PointingHandCursor)
+        btn_prev_nota.clicked.connect(self._preview_nota)
+        btn_gen_nota = QPushButton("Generar PDF")
+        btn_gen_nota.setObjectName("DocBtn")
+        btn_gen_nota.setCursor(Qt.PointingHandCursor)
+        btn_gen_nota.clicked.connect(self._generar_nota)
+        nota_row.addWidget(btn_prev_nota)
+        nota_row.addSpacing(6)
+        nota_row.addWidget(btn_gen_nota)
+        layout.addLayout(nota_row)
+
+        factura_row = QHBoxLayout()
+        factura_row.addWidget(QLabel("Factura:"))
+        factura_row.addStretch(1)
+        btn_prev_fact = QPushButton("Vista Previa")
+        btn_prev_fact.setObjectName("DocBtn")
+        btn_prev_fact.setCursor(Qt.PointingHandCursor)
+        btn_prev_fact.clicked.connect(self._preview_factura)
+        btn_gen_fact = QPushButton("Generar PDF")
+        btn_gen_fact.setObjectName("DocBtn")
+        btn_gen_fact.setCursor(Qt.PointingHandCursor)
+        btn_gen_fact.clicked.connect(self._generar_factura)
+        factura_row.addWidget(btn_prev_fact)
+        factura_row.addSpacing(6)
+        factura_row.addWidget(btn_gen_fact)
+        layout.addLayout(factura_row)
+
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.HLine)
+        sep2.setFixedHeight(1)
+        layout.addWidget(sep2)
+
+        btn_cerrar = QPushButton("Cerrar")
+        btn_cerrar.setCursor(Qt.PointingHandCursor)
+        btn_cerrar.clicked.connect(self.accept)
+        layout.addWidget(btn_cerrar, alignment=Qt.AlignRight)
+
+        self.setStyleSheet("""
+            QDialog#PostVentaDialog {
+                background: #F7F4EF;
+                font-family: "Segoe UI";
+                font-size: 10pt;
+                color: #2A2A2A;
+            }
+            QLabel { color: #2A2A2A; }
+            QPushButton#DocBtn {
+                background: #F6F1EA;
+                color: #2A2A2A;
+                border: 1px solid #DED6CC;
+                border-radius: 8px;
+                padding: 6px 14px;
+                min-width: 110px;
+            }
+            QPushButton#DocBtn:hover { border: 1px solid #C8A24A; background: #F7F4EF; }
+            QPushButton#DocBtn:pressed { background: #EFE7DD; }
+            QPushButton {
+                background: #F6F1EA;
+                color: #2A2A2A;
+                border: 1px solid #DED6CC;
+                border-radius: 8px;
+                padding: 6px 14px;
+            }
+            QPushButton:hover { border: 1px solid #C8A24A; }
+        """)
+
+        self._cargar_datos()
+
+    def _cargar_datos(self):
+        try:
+            with db() as conn:
+                cur = conn.cursor()
+                _exec(
+                    cur,
+                    "SELECT v.id_venta, v.fecha, v.forma_pago, v.total, "
+                    "c.nombre AS cliente, c.correo, c.telefono, "
+                    "ven.nombre AS vendedor "
+                    "FROM Ventas v "
+                    "LEFT JOIN Clientes c ON c.id_cliente = v.id_cliente "
+                    "LEFT JOIN Vendedores ven ON ven.id_vendedor = v.id_vendedor "
+                    "WHERE v.id_venta = ?",
+                    (self.venta_id,),
+                )
+                self._venta = cur.fetchone()
+                _exec(
+                    cur,
+                    "SELECT p.titulo, dv.cantidad, dv.subtotal, p.precio "
+                    "FROM DetalleVenta dv "
+                    "LEFT JOIN Pinturas p ON p.id_pintura = dv.id_pintura "
+                    "WHERE dv.id_venta = ? "
+                    "ORDER BY dv.id_detalle ASC",
+                    (self.venta_id,),
+                )
+                self._detalles = cur.fetchall()
+        except Exception as e:
+            QMessageBox.warning(
+                self, "Advertencia",
+                f"No se pudo cargar la venta para documentos:\n{e}"
+            )
+
+    def _fmt_fecha(self, valor):
+        if valor is None:
+            return "-"
+        try:
+            return valor.strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            return str(valor)
+
+    def _filas_html(self):
+        filas = ""
+        for d in self._detalles:
+            titulo = escape(str(d.titulo or ""))
+            cantidad = int(d.cantidad or 0)
+            precio_unitario = float(d.precio or 0)
+            subtotal = float(d.subtotal or 0)
+            filas += (
+                f"<tr>"
+                f"<td class='txt'>{titulo}</td>"
+                f"<td class='num'>{cantidad}</td>"
+                f"<td class='num'>${precio_unitario:,.2f}</td>"
+                f"<td class='num'>${subtotal:,.2f}</td>"
+                f"</tr>"
+            )
+        return filas
+
+    def _info_cabecera(self):
+        v = self._venta
+        fecha = escape(self._fmt_fecha(v.fecha))
+        cliente = escape(str(getattr(v, "cliente", "") or "-"))
+        correo = escape(str(getattr(v, "correo", "") or "-"))
+        telefono = escape(str(getattr(v, "telefono", "") or "-"))
+        vendedor = escape(str(getattr(v, "vendedor", "") or "-"))
+        forma_pago = escape(str(getattr(v, "forma_pago", "") or "-"))
+        return fecha, cliente, correo, telefono, vendedor, forma_pago
+
+    def _armar_html_nota(self):
+        if not self._venta:
+            return "<html><body>Sin datos de venta.</body></html>"
+        v = self._venta
+        fecha, cliente, correo, telefono, vendedor, forma_pago = self._info_cabecera()
+        total = float(getattr(v, "total", 0) or 0)
+        filas = self._filas_html()
+        return f"""
+        <html><head><style>{_PDF_CSS}</style></head><body>
+        <div class="page">
+            <div class="header">
+                <div class="brand">GALERÍA DE ARTE</div>
+                <div class="title">NOTA DE VENTA</div>
+                <div class="sub">Folio #{v.id_venta}</div>
+            </div>
+            <div class="line"></div>
+            <table class="info">
+                <tr>
+                    <td class="label">Fecha:</td><td class="value">{fecha}</td>
+                    <td class="label">Cliente:</td><td class="value">{cliente}</td>
+                </tr>
+                <tr>
+                    <td class="label">Correo:</td><td class="value">{correo}</td>
+                    <td class="label">Teléfono:</td><td class="value">{telefono}</td>
+                </tr>
+                <tr>
+                    <td class="label">Vendedor:</td><td class="value">{vendedor}</td>
+                    <td class="label">Pago:</td><td class="value">{forma_pago}</td>
+                </tr>
+            </table>
+            <div class="line"></div>
+            <table class="items">
+                <thead>
+                    <tr>
+                        <th style="width:52%;">Pintura</th>
+                        <th style="width:12%; text-align:right;">Cant.</th>
+                        <th style="width:18%; text-align:right;">P.U.</th>
+                        <th style="width:18%; text-align:right;">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>{filas}</tbody>
+            </table>
+            <table class="summary">
+                <tr>
+                    <td class="label">TOTAL:</td>
+                    <td class="value">${total:,.2f}</td>
+                </tr>
+            </table>
+            <div class="footer">Gracias por su compra. Conserve este comprobante.</div>
+        </div>
+        </body></html>"""
+
+    def _armar_html_factura(self):
+        if not self._venta:
+            return "<html><body>Sin datos de venta.</body></html>"
+        v = self._venta
+        fecha, cliente, correo, telefono, vendedor, forma_pago = self._info_cabecera()
+        total_bruto = float(getattr(v, "total", 0) or 0)
+        subtotal_sin_iva = total_bruto / (1 + _IVA_RATE)
+        iva = total_bruto - subtotal_sin_iva
+        filas = self._filas_html()
+        return f"""
+        <html><head><style>{_PDF_CSS}</style></head><body>
+        <div class="page">
+            <div class="header">
+                <div class="brand">GALERÍA DE ARTE</div>
+                <div class="title">FACTURA</div>
+                <div class="sub">Folio #{v.id_venta}</div>
+            </div>
+            <div class="line"></div>
+            <table class="info">
+                <tr>
+                    <td class="label">Fecha:</td><td class="value">{fecha}</td>
+                    <td class="label">Cliente:</td><td class="value">{cliente}</td>
+                </tr>
+                <tr>
+                    <td class="label">Correo:</td><td class="value">{correo}</td>
+                    <td class="label">Teléfono:</td><td class="value">{telefono}</td>
+                </tr>
+                <tr>
+                    <td class="label">Vendedor:</td><td class="value">{vendedor}</td>
+                    <td class="label">Pago:</td><td class="value">{forma_pago}</td>
+                </tr>
+            </table>
+            <div class="line"></div>
+            <table class="items">
+                <thead>
+                    <tr>
+                        <th style="width:52%;">Pintura</th>
+                        <th style="width:12%; text-align:right;">Cant.</th>
+                        <th style="width:18%; text-align:right;">P.U.</th>
+                        <th style="width:18%; text-align:right;">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>{filas}</tbody>
+            </table>
+            <table class="summary">
+                <tr>
+                    <td class="label" style="font-size:11pt; font-weight:normal;">Subtotal (sin IVA):</td>
+                    <td class="value" style="font-size:11pt;">${subtotal_sin_iva:,.2f}</td>
+                </tr>
+                <tr>
+                    <td class="label" style="font-size:11pt; font-weight:normal;">IVA ({int(_IVA_RATE * 100)}%):</td>
+                    <td class="value" style="font-size:11pt;">${iva:,.2f}</td>
+                </tr>
+                <tr>
+                    <td class="label">TOTAL:</td>
+                    <td class="value">${total_bruto:,.2f}</td>
+                </tr>
+            </table>
+            <div class="footer">Gracias por su compra. Conserve esta factura.</div>
+        </div>
+        </body></html>"""
+
+    def _escribir_pdf(self, ruta: str, titulo: str, html: str) -> None:
+        dpi, margin_mm = 96, 15
+        writer = QPdfWriter(ruta)
+        writer.setResolution(dpi)
+        writer.setTitle(titulo)
+        writer.setCreator("Sistema Galería de Arte")
+        writer.setPageSize(QPageSize(QPageSize.Letter))
+        writer.setPageMargins(
+            QMarginsF(margin_mm, margin_mm, margin_mm, margin_mm),
+            QPageLayout.Millimeter,
+        )
+        rect = writer.pageLayout().paintRectPixels(writer.resolution())
+        doc = QTextDocument()
+        doc.setDocumentMargin(0)
+        doc.setHtml(html)
+        doc.setTextWidth(rect.width())
+        doc.adjustSize()
+        painter = QPainter(writer)
+        painter.setRenderHint(QPainter.Antialiasing)
+        doc.drawContents(painter)
+        painter.end()
+
+    def _vista_previa(self, titulo: str, nombre_base: str, html: str) -> None:
+        try:
+            tmp = tempfile.NamedTemporaryFile(
+                suffix=".pdf",
+                prefix=nombre_base + "_preview_",
+                delete=False,
+            )
+            ruta = tmp.name
+            tmp.close()
+            self._escribir_pdf(ruta, titulo, html)
+            if sys.platform.startswith("win"):
+                os.startfile(ruta)
+            elif sys.platform.startswith("darwin"):
+                subprocess.Popen(["open", ruta])
+            else:
+                subprocess.Popen(["xdg-open", ruta])
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo generar la vista previa:\n{e}")
+
+    def _guardar_pdf(self, titulo: str, nombre_sugerido: str, html: str) -> None:
+        ruta, _ = QFileDialog.getSaveFileName(
+            self, "Guardar PDF", nombre_sugerido, "PDF (*.pdf)"
+        )
+        if not ruta:
+            return
+        try:
+            self._escribir_pdf(ruta, titulo, html)
+            QMessageBox.information(self, "Listo", f"PDF generado correctamente:\n{ruta}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo generar el PDF:\n{e}")
+
+    def _preview_nota(self):
+        self._vista_previa(
+            f"Nota de Venta #{self.venta_id}",
+            f"nota_venta_{self.venta_id}",
+            self._armar_html_nota(),
+        )
+
+    def _generar_nota(self):
+        self._guardar_pdf(
+            f"Nota de Venta #{self.venta_id}",
+            f"nota_venta_{self.venta_id}.pdf",
+            self._armar_html_nota(),
+        )
+
+    def _preview_factura(self):
+        self._vista_previa(
+            f"Factura #{self.venta_id}",
+            f"factura_{self.venta_id}",
+            self._armar_html_factura(),
+        )
+
+    def _generar_factura(self):
+        self._guardar_pdf(
+            f"Factura #{self.venta_id}",
+            f"factura_{self.venta_id}.pdf",
+            self._armar_html_factura(),
+        )
 
 
 # =========================
@@ -1499,18 +1918,13 @@ class VentasVentana(QMainWindow):
         try:
             resultado = self._guardar_venta_con_pago(payment)
 
-            if resultado["forma_pago"] == "efectivo" and resultado["cambio"] > 0:
-                QMessageBox.information(
-                    self,
-                    "Venta concretada",
-                    f"La venta se concretó correctamente.\nSe devolvió ${resultado['cambio']:.2f} de cambio."
-                )
-            else:
-                QMessageBox.information(
-                    self,
-                    "Venta concretada",
-                    "La venta se concretó correctamente."
-                )
+            dlg_post = _PostVentaDialog(
+                resultado["venta_id"],
+                resultado["forma_pago"],
+                resultado["cambio"],
+                self,
+            )
+            dlg_post.exec()
 
         except Exception as e:
             self._show_error("Error BD", str(e))
