@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple
 
 from config.conexion import obtener_conexion
 from ventanas.Artistas import ArtistasVentana
+from modulos.PdfUtils import guardar_pdf, vista_previa_pdf, html_tabla_widget
 
 from PySide6.QtCore import Qt, QRegularExpression
 from PySide6.QtGui import QFont, QRegularExpressionValidator
@@ -649,6 +650,12 @@ class PinturasVentana(QMainWindow):
 
         row_bottom = QHBoxLayout()
         row_bottom.addStretch(1)
+        self.btnVistaPrevia = self._button("Vista Previa", self.vista_previa_pdf, wide=True)
+        row_bottom.addWidget(self.btnVistaPrevia)
+        row_bottom.addSpacing(8)
+        self.btnExportarPDF = self._button("Exportar PDF", self.exportar_pdf, wide=True)
+        row_bottom.addWidget(self.btnExportarPDF)
+        row_bottom.addSpacing(8)
         self.btnSalir = self._button("Salir", self.close, wide=True)
         row_bottom.addWidget(self.btnSalir)
         row_bottom.addStretch(1)
@@ -665,6 +672,14 @@ class PinturasVentana(QMainWindow):
         if self.ventana_principal is not None:
             self.ventana_principal.show()
         event.accept()
+
+    def exportar_pdf(self) -> None:
+        guardar_pdf(self, "Gestión de Pinturas", "pinturas.pdf",
+                    html_tabla_widget(self.table, "LISTADO DE PINTURAS"))
+
+    def vista_previa_pdf(self) -> None:
+        vista_previa_pdf(self, "Gestión de Pinturas", "pinturas.pdf",
+                         html_tabla_widget(self.table, "LISTADO DE PINTURAS"))
 
     def showEvent(self, event):
         super().showEvent(event)

@@ -15,6 +15,7 @@ from ventanas.Artistas import ArtistasVentana
 from ventanas.Pinturas import PinturasVentana
 from ventanas.Cotizaciones import CotizacionesVentana
 from ventanas.RealizarVenta import RealizarVentaDialog
+from modulos.PdfUtils import guardar_pdf as _guardar_pdf_utils, vista_previa_pdf as _preview_pdf_utils, html_tabla_widget
 
 from PySide6.QtCore import Qt, QDate, QMarginsF, QRegularExpression
 from PySide6.QtGui import QFont, QPainter, QPdfWriter, QPageSize, QPageLayout, QRegularExpressionValidator, QTextDocument
@@ -1123,6 +1124,12 @@ class VentasVentana(QMainWindow):
 
         row_bottom = QHBoxLayout()
         row_bottom.addStretch(1)
+        self.btnVistaPrevia = self._button("Vista Previa", self.vista_previa_pdf, wide=True)
+        row_bottom.addWidget(self.btnVistaPrevia)
+        row_bottom.addSpacing(8)
+        self.btnExportarPDF = self._button("Exportar PDF", self.exportar_pdf, wide=True)
+        row_bottom.addWidget(self.btnExportarPDF)
+        row_bottom.addSpacing(8)
         self.btnSalir = self._button("Salir", self.close, wide=True)
         row_bottom.addWidget(self.btnSalir)
         row_bottom.addStretch(1)
@@ -1143,6 +1150,14 @@ class VentasVentana(QMainWindow):
         if self.ventana_principal is not None:
             self.ventana_principal.show()
         event.accept()
+
+    def exportar_pdf(self) -> None:
+        _guardar_pdf_utils(self, "Gestión de Ventas", "ventas.pdf",
+                           html_tabla_widget(self.ventas_table, "LISTADO DE VENTAS"))
+
+    def vista_previa_pdf(self) -> None:
+        _preview_pdf_utils(self, "Gestión de Ventas", "ventas.pdf",
+                           html_tabla_widget(self.ventas_table, "LISTADO DE VENTAS"))
 
     def showEvent(self, event):
         super().showEvent(event)

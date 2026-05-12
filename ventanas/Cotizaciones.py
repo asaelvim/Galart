@@ -9,6 +9,7 @@ from ventanas.Clientes import ClientesVentana
 from ventanas.Vendedores import VendedoresVentana
 from ventanas.Artistas import ArtistasVentana
 from ventanas.Pinturas import PinturasVentana
+from modulos.PdfUtils import guardar_pdf, vista_previa_pdf, html_tabla_widget
 
 from PySide6.QtCore import Qt, QDate, QRegularExpression
 from PySide6.QtGui import QFont, QRegularExpressionValidator
@@ -560,6 +561,12 @@ class CotizacionesVentana(QMainWindow):
 
         row_bottom = QHBoxLayout()
         row_bottom.addStretch(1)
+        self.btnVistaPrevia = self._button("Vista Previa", self.vista_previa_pdf, wide=True)
+        row_bottom.addWidget(self.btnVistaPrevia)
+        row_bottom.addSpacing(8)
+        self.btnExportarPDF = self._button("Exportar PDF", self.exportar_pdf, wide=True)
+        row_bottom.addWidget(self.btnExportarPDF)
+        row_bottom.addSpacing(8)
         self.btnSalir = self._button("Salir", self.close, wide=True)
         row_bottom.addWidget(self.btnSalir)
         row_bottom.addStretch(1)
@@ -578,7 +585,15 @@ class CotizacionesVentana(QMainWindow):
         if self.ventana_principal is not None:
             self.ventana_principal.show()
         event.accept()
-    
+
+    def exportar_pdf(self) -> None:
+        guardar_pdf(self, "Gestión de Cotizaciones", "cotizaciones.pdf",
+                    html_tabla_widget(self.cot_table, "LISTADO DE COTIZACIONES"))
+
+    def vista_previa_pdf(self) -> None:
+        vista_previa_pdf(self, "Gestión de Cotizaciones", "cotizaciones.pdf",
+                         html_tabla_widget(self.cot_table, "LISTADO DE COTIZACIONES"))
+
     def showEvent(self, event):
         super().showEvent(event)
         self.actualizar_selects()
