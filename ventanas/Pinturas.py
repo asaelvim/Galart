@@ -259,7 +259,7 @@ class TecnicasVentana(QDialog):
         self.txtNombre.setFixedHeight(34)
 
         validator_nombre = QRegularExpressionValidator(
-            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s]+$")
+            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$")
         )
         self.txtNombre.setValidator(validator_nombre)
 
@@ -495,6 +495,10 @@ class PinturasVentana(QMainWindow):
         self.txtTitulo = QLineEdit()
         self.txtTitulo.setObjectName("txtTitulo")
         self.txtTitulo.setFixedWidth(460)
+        validator_titulo = QRegularExpressionValidator(
+            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s\.,\-']+$")
+        )
+        self.txtTitulo.setValidator(validator_titulo)
         row_titulo.addWidget(lbl_titulo)
         row_titulo.addWidget(self.txtTitulo)
         row_titulo.addStretch(1)
@@ -604,7 +608,7 @@ class PinturasVentana(QMainWindow):
         card_layout.addLayout(row_buscar_id)
 
         validator_titulo = QRegularExpressionValidator(
-            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s]+$")
+            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s\.,\-']+$")
         )
         validator_precio = QRegularExpressionValidator(
             QRegularExpression(r"^[0-9]*\.?[0-9]*$")
