@@ -619,7 +619,7 @@ class ComprasVentana(QMainWindow):
             QRegularExpression(r"^[0-9]+$")
         )
         validator_precio = QRegularExpressionValidator(
-            QRegularExpression(r"^[0-9]*\.?[0-9]*$")
+            QRegularExpression(r"^[0-9]+(\.[0-9]{1,2})?$")
         )
         validator_alfanumerico = QRegularExpressionValidator(
             QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s]+$")
