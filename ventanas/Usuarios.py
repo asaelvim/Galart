@@ -345,11 +345,14 @@ class UsuariosVentana(QMainWindow):
         validator_numeros = QRegularExpressionValidator(
             QRegularExpression(r"^[0-9]+$")
         )
+        validator_telefono = QRegularExpressionValidator(
+            QRegularExpression(r"^\d{0,10}$")
+        )
         validator_email = QRegularExpressionValidator(
             QRegularExpression(r"^[a-zA-Z0-9_.+\-@]+$")
         )
         self.txtNombre.setValidator(validator_letras)
-        self.txtTelefono.setValidator(validator_numeros)
+        self.txtTelefono.setValidator(validator_telefono)
         self.txtEmail.setValidator(validator_email)
         self.txtBuscarID.setValidator(validator_numeros)
         self.txtBuscar.setValidator(validator_letras)
@@ -646,6 +649,9 @@ class UsuariosVentana(QMainWindow):
         if not nombre or not usuario or not contrasena or not email:
             self._show_error("Validación", "Completa Nombre, Usuario, Contraseña y Email.")
             return
+        if telefono and len(telefono) != 10:
+            self._show_error("Validación", "El teléfono debe tener exactamente 10 dígitos.")
+            return
         if not _EMAIL_RE.match(email):
             self._show_error("Validación", "El email no tiene un formato válido (ejemplo: usuario@dominio.com).")
             return
@@ -663,6 +669,9 @@ class UsuariosVentana(QMainWindow):
         nombre, usuario, contrasena, email, telefono, id_tipo, activo = self._get_form_values()
         if not nombre or not usuario or not contrasena or not email:
             self._show_error("Validación", "Completa Nombre, Usuario, Contraseña y Email.")
+            return
+        if telefono and len(telefono) != 10:
+            self._show_error("Validación", "El teléfono debe tener exactamente 10 dígitos.")
             return
         if not _EMAIL_RE.match(email):
             self._show_error("Validación", "El email no tiene un formato válido (ejemplo: usuario@dominio.com).")
