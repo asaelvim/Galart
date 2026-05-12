@@ -495,6 +495,10 @@ class PinturasVentana(QMainWindow):
         self.txtTitulo = QLineEdit()
         self.txtTitulo.setObjectName("txtTitulo")
         self.txtTitulo.setFixedWidth(460)
+        validator_titulo = QRegularExpressionValidator(
+            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s\.,\-']+$")
+        )
+        self.txtTitulo.setValidator(validator_titulo)
         row_titulo.addWidget(lbl_titulo)
         row_titulo.addWidget(self.txtTitulo)
         row_titulo.addStretch(1)
