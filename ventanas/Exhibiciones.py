@@ -8,8 +8,8 @@ from config.conexion import obtener_conexion
 from ventanas.Pinturas import PinturasVentana
 from ventanas.Artistas import ArtistasVentana
 
-from PySide6.QtCore import Qt, QDate, QTime
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QDate, QTime, QRegularExpression
+from PySide6.QtGui import QFont, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -577,6 +577,17 @@ class ExhibicionesVentana(QMainWindow):
         row_buscar_id.addWidget(self.btnBuscarID)
         row_buscar_id.addStretch(1)
         card_layout.addLayout(row_buscar_id)
+
+        # === Validadores de campos ===
+        validator_letras = QRegularExpressionValidator(
+            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$")
+        )
+        validator_numeros = QRegularExpressionValidator(
+            QRegularExpression(r"^[0-9]+$")
+        )
+        self.txtNombre.setValidator(validator_letras)
+        self.txtBuscar.setValidator(validator_letras)
+        self.txtBuscarID.setValidator(validator_numeros)
 
         row_mostrar = QHBoxLayout()
         row_mostrar.addStretch(1)

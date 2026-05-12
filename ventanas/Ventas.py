@@ -12,8 +12,8 @@ from ventanas.Pinturas import PinturasVentana
 from ventanas.Cotizaciones import CotizacionesVentana
 from ventanas.RealizarVenta import RealizarVentaDialog
 
-from PySide6.QtCore import Qt, QDate
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QDate, QRegularExpression
+from PySide6.QtGui import QFont, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -673,6 +673,16 @@ class VentasVentana(QMainWindow):
         row_buscar_detalle.addWidget(self.btnBuscarDetalle)
         row_buscar_detalle.addStretch(1)
         card_layout.addLayout(row_buscar_detalle)
+
+        # === Validadores de campos ===
+        validator_numeros = QRegularExpressionValidator(
+            QRegularExpression(r"^[0-9]+$")
+        )
+        validator_alfanumerico = QRegularExpressionValidator(
+            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s]+$")
+        )
+        self.txtBuscarID.setValidator(validator_numeros)
+        self.txtBuscarDetalle.setValidator(validator_alfanumerico)
 
         ventas_frame = QFrame()
         ventas_frame.setObjectName("TableFrame")

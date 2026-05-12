@@ -9,8 +9,8 @@ from ventanas.Proveedores import ProveedoresWindow
 from ventanas.Artistas import ArtistasVentana
 from ventanas.Pinturas import PinturasVentana
 
-from PySide6.QtCore import Qt, QDate
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QDate, QRegularExpression
+from PySide6.QtGui import QFont, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -610,6 +610,24 @@ class ComprasVentana(QMainWindow):
         row_buscar_detalle.addWidget(self.btnBuscarDetalle)
         row_buscar_detalle.addStretch(1)
         card_layout.addLayout(row_buscar_detalle)
+
+        # === Validadores de campos ===
+        validator_letras = QRegularExpressionValidator(
+            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$")
+        )
+        validator_numeros = QRegularExpressionValidator(
+            QRegularExpression(r"^[0-9]+$")
+        )
+        validator_precio = QRegularExpressionValidator(
+            QRegularExpression(r"^[0-9]*\.?[0-9]*$")
+        )
+        validator_alfanumerico = QRegularExpressionValidator(
+            QRegularExpression(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s]+$")
+        )
+        self.txtPrecio.setValidator(validator_precio)
+        self.txtBuscarID.setValidator(validator_numeros)
+        self.txtBuscarProveedor.setValidator(validator_letras)
+        self.txtBuscarDetalle.setValidator(validator_alfanumerico)
 
         compras_frame = QFrame()
         compras_frame.setObjectName("TableFrame")
