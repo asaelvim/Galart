@@ -162,6 +162,7 @@ INSERT OR IGNORE INTO UsuarioTipo (id_tipo, nombre) VALUES (1, 'Administrador');
 INSERT OR IGNORE INTO UsuarioTipo (id_tipo, nombre) VALUES (2, 'Vendedor');
 
 INSERT OR IGNORE INTO Usuarios (id_usuario, nombre, usuario, contraseña, email, telefono, id_tipo, activo)
+-- NOTE: Change the admin password after first login. Default is 'admin123'.
 VALUES (1, 'Administrador', 'admin', 'admin123', 'admin@galart.com', '5500000000', 1, 1);
 
 INSERT OR IGNORE INTO Artistas (id_artista, nombre, biografia, pais)

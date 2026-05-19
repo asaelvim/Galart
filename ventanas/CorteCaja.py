@@ -284,7 +284,8 @@ class HistorialCortesDialog(QDialog):
                 id_cierre = int(fila[0])
                 fecha_dt = fila[1]
                 fecha_str = str(fecha_dt)[:10] if fecha_dt else "-"
-                hora_str = str(fecha_dt)[11:19] if fecha_dt else "-"
+                s = str(fecha_dt) if fecha_dt else ""
+                hora_str = s[11:19] if len(s) >= 19 else (s[11:] if len(s) > 10 else "-")
                 vendedor = str(fila[2]) if fila[2] else "-"
                 id_vendedor = int(fila[3]) if fila[3] is not None else None
                 ef = float(fila[4] or 0)
