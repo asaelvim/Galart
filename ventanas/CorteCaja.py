@@ -283,8 +283,8 @@ class HistorialCortesDialog(QDialog):
             for fila in rows:
                 id_cierre = int(fila[0])
                 fecha_dt = fila[1]
-                fecha_str = fecha_dt.strftime("%Y-%m-%d") if fecha_dt else "-"
-                hora_str = fecha_dt.strftime("%H:%M:%S") if fecha_dt else "-"
+                fecha_str = str(fecha_dt)[:10] if fecha_dt else "-"
+                hora_str = str(fecha_dt)[11:19] if fecha_dt else "-"
                 vendedor = str(fila[2]) if fila[2] else "-"
                 id_vendedor = int(fila[3]) if fila[3] is not None else None
                 ef = float(fila[4] or 0)
@@ -299,10 +299,11 @@ class HistorialCortesDialog(QDialog):
                         cur2 = self.conexion.cursor()
                         cur2.execute(
                             """
-                            SELECT TOP 1 monto, fecha FROM AperturaCaja
+                            SELECT monto, fecha FROM AperturaCaja
                             WHERE id_vendedor = ?
-                              AND CAST(fecha AS DATE) = CAST(? AS DATE)
+                              AND DATE(fecha) = DATE(?)
                             ORDER BY id_apertura DESC
+                            LIMIT 1
                             """,
                             (id_vendedor, fecha_dt),
                         )
@@ -827,11 +828,12 @@ class CorteCajaVentana(QMainWindow):
         cursor = self.conexion.cursor()
         cursor.execute(
             """
-            SELECT TOP 1 id_apertura, monto, fecha
+            SELECT id_apertura, monto, fecha
             FROM AperturaCaja
             WHERE id_vendedor = ?
-              AND CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
+              AND DATE(fecha) = DATE('now')
             ORDER BY id_apertura DESC
+            LIMIT 1
             """,
             (self._id_vendedor,),
         )
@@ -847,7 +849,7 @@ class CorteCajaVentana(QMainWindow):
                 SELECT COUNT(1)
                 FROM CierreCaja
                 WHERE id_vendedor = ?
-                  AND CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
+                  AND DATE(fecha) = DATE('now')
                 """,
                 (self._id_vendedor,),
             )
@@ -888,7 +890,7 @@ class CorteCajaVentana(QMainWindow):
                 FROM Ventas v
                 LEFT JOIN Clientes c ON c.id_cliente = v.id_cliente
                 WHERE v.id_vendedor = ?
-                  AND CAST(v.fecha AS DATE) = CAST(GETDATE() AS DATE)
+                  AND DATE(v.fecha) = DATE('now')
                 ORDER BY v.fecha
                 """,
                 (self._id_vendedor,),
@@ -985,11 +987,11 @@ class CorteCajaVentana(QMainWindow):
             cursor.execute(
                 """
                 INSERT INTO AperturaCaja (id_vendedor, monto, fecha)
-                SELECT ?, ?, GETDATE()
+                SELECT ?, ?, datetime('now', 'localtime')
                 WHERE NOT EXISTS (
                     SELECT 1 FROM AperturaCaja
                     WHERE id_vendedor = ?
-                      AND CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
+                      AND DATE(fecha) = DATE('now', 'localtime')
                 )
                 """,
                 (self._id_vendedor, monto, self._id_vendedor),
@@ -1111,11 +1113,11 @@ class CorteCajaVentana(QMainWindow):
                 """
                 INSERT INTO CierreCaja
                     (id_vendedor, fecha, totalEfectivo, totalVoucher, montoTotal)
-                SELECT ?, GETDATE(), ?, ?, ?
+                SELECT ?, datetime('now', 'localtime'), ?, ?, ?
                 WHERE NOT EXISTS (
                     SELECT 1 FROM CierreCaja
                     WHERE id_vendedor = ?
-                      AND CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
+                      AND DATE(fecha) = DATE('now', 'localtime')
                 )
                 """,
                 (self._id_vendedor, ef_decl, tj_decl, monto_total, self._id_vendedor),
@@ -1158,11 +1160,12 @@ class CorteCajaVentana(QMainWindow):
                 """
                 DELETE FROM CierreCaja
                 WHERE id_cierre = (
-                    SELECT TOP 1 id_cierre
+                    SELECT id_cierre
                     FROM CierreCaja
                     WHERE id_vendedor = ?
-                      AND CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)
+                      AND DATE(fecha) = DATE('now', 'localtime')
                     ORDER BY fecha DESC
+                    LIMIT 1
                 )
                 """,
                 (self._id_vendedor,),
