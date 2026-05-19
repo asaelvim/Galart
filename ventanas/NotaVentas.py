@@ -392,7 +392,7 @@ class NotaVentasVentana(QMainWindow):
                 FROM Ventas v
                 LEFT JOIN Clientes c ON c.id_cliente = v.id_cliente
                 LEFT JOIN Vendedores ven ON ven.id_vendedor = v.id_vendedor
-                WHERE CAST(v.fecha AS date) BETWEEN ? AND ?
+                WHERE DATE(v.fecha) BETWEEN ? AND ?
                 ORDER BY v.fecha DESC, v.id_venta DESC;
             """
             cursor.execute(sql, (
