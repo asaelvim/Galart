@@ -36,10 +36,6 @@ class VentanaPrincipal(QMainWindow):
         self.ventana_reportes = None
         self.ventana_corte_caja = None
         self.ventana_usuarios = None
-
-        cursor = self.conexion.cursor()
-        cursor.execute("SELECT DB_NAME()")
-        print("Conectado a:", cursor.fetchone()[0])
         self.setWindowTitle("Galería de Arte")
         self.setMinimumSize(QSize(590, 829))
 

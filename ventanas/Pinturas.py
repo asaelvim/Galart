@@ -69,8 +69,8 @@ class PinturasRepo:
             _exec(
                 cur,
                 "SELECT p.id_pintura, p.titulo, p.precio, p.id_artista, "
-                "ISNULL(a.nombre, '') as artista_nombre, "
-                "p.id_tecnica, ISNULL(t.nombre, '') as tecnica_nombre "
+                "COALESCE(a.nombre, '') as artista_nombre, "
+                "p.id_tecnica, COALESCE(t.nombre, '') as tecnica_nombre "
                 "FROM Pinturas p "
                 "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
                 "LEFT JOIN Tecnicas t ON p.id_tecnica = t.id_tecnica "
@@ -95,8 +95,8 @@ class PinturasRepo:
             _exec(
                 cur,
                 "SELECT p.id_pintura, p.titulo, p.precio, p.id_artista, "
-                "ISNULL(a.nombre, '') as artista_nombre, "
-                "p.id_tecnica, ISNULL(t.nombre, '') as tecnica_nombre "
+                "COALESCE(a.nombre, '') as artista_nombre, "
+                "p.id_tecnica, COALESCE(t.nombre, '') as tecnica_nombre "
                 "FROM Pinturas p "
                 "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
                 "LEFT JOIN Tecnicas t ON p.id_tecnica = t.id_tecnica "
@@ -123,8 +123,8 @@ class PinturasRepo:
             _exec(
                 cur,
                 "SELECT p.id_pintura, p.titulo, p.precio, p.id_artista, "
-                "ISNULL(a.nombre, '') as artista_nombre, "
-                "p.id_tecnica, ISNULL(t.nombre, '') as tecnica_nombre "
+                "COALESCE(a.nombre, '') as artista_nombre, "
+                "p.id_tecnica, COALESCE(t.nombre, '') as tecnica_nombre "
                 "FROM Pinturas p "
                 "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
                 "LEFT JOIN Tecnicas t ON p.id_tecnica = t.id_tecnica "
@@ -189,7 +189,7 @@ class TecnicasRepo:
         with db() as conn:
             cur = conn.cursor()
 
-            _exec(cur, "SELECT TOP 1 id_tecnica FROM Tecnicas WHERE nombre = ?", (nombre,))
+            _exec(cur, "SELECT id_tecnica FROM Tecnicas WHERE nombre = ? LIMIT 1", (nombre,))
             existente = cur.fetchone()
             if existente is not None:
                 raise RuntimeError("Ya existe una técnica con ese nombre.")
@@ -199,7 +199,7 @@ class TecnicasRepo:
 
             _exec(
                 cur,
-                "SELECT TOP 1 id_tecnica FROM Tecnicas WHERE nombre = ? ORDER BY id_tecnica DESC",
+                "SELECT id_tecnica FROM Tecnicas WHERE nombre = ? ORDER BY id_tecnica DESC LIMIT 1",
                 (nombre,),
             )
             row = cur.fetchone()
