@@ -188,7 +188,7 @@ class ExhibicionesRepo:
                     "INNER JOIN DetalleExhibicion d ON e.id_exhibicion = d.id_exhibicion "
                     "INNER JOIN Pinturas p ON d.id_pintura = p.id_pintura "
                     "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
-                    "WHERE ISNULL(a.nombre, '') LIKE ? "
+                    "WHERE COALESCE(a.nombre, '') LIKE ? "
                     "ORDER BY e.id_exhibicion"
                 )
                 params = (like,)
@@ -219,11 +219,10 @@ class ExhibicionesRepo:
             _exec(
                 cur,
                 "INSERT INTO Exhibicion (nombre, fecha_inicio, fecha_fin, hora_inicio, hora_fin) "
-                "VALUES (?, ?, ?, ?, ?); SELECT SCOPE_IDENTITY()",
+                "VALUES (?, ?, ?, ?, ?)",
                 (nombre, fecha_inicio, fecha_fin, hora_inicio, hora_fin),
             )
-            cur.nextset()
-            new_id = int(cur.fetchone()[0])
+            new_id = cur.lastrowid
             conn.commit()
             return new_id
 
@@ -260,8 +259,8 @@ class DetalleExhibicionRepo:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT d.id_detalle, d.id_pintura, ISNULL(p.titulo, '') AS titulo, "
-                "ISNULL(a.nombre, '') AS artista "
+                "SELECT d.id_detalle, d.id_pintura, COALESCE(p.titulo, '') AS titulo, "
+                "COALESCE(a.nombre, '') AS artista "
                 "FROM DetalleExhibicion d "
                 "LEFT JOIN Pinturas p ON d.id_pintura = p.id_pintura "
                 "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
@@ -306,7 +305,7 @@ class ArtistasRepo:
     def fetch_all_for_combo(self) -> List[Tuple[int, str]]:
         with db() as conn:
             cur = conn.cursor()
-            _exec(cur, "SELECT id_artista, ISNULL(nombre, '') FROM Artistas ORDER BY nombre")
+            _exec(cur, "SELECT id_artista, COALESCE(nombre, '') FROM Artistas ORDER BY nombre")
             rows = cur.fetchall()
             return [(int(r[0]), str(r[1]) if r[1] is not None else "") for r in rows]
 
@@ -318,14 +317,14 @@ class PinturasRepo:
             if id_artista is None:
                 _exec(
                     cur,
-                    "SELECT p.id_pintura, ISNULL(p.titulo, '') "
+                    "SELECT p.id_pintura, COALESCE(p.titulo, '') "
                     "FROM Pinturas p "
                     "ORDER BY p.titulo",
                 )
             else:
                 _exec(
                     cur,
-                    "SELECT p.id_pintura, ISNULL(p.titulo, '') "
+                    "SELECT p.id_pintura, COALESCE(p.titulo, '') "
                     "FROM Pinturas p "
                     "WHERE p.id_artista = ? "
                     "ORDER BY p.titulo",
@@ -1026,7 +1025,7 @@ class ExhibicionesVentana(QMainWindow):
                 cur = conn.cursor()
                 _exec(
                     cur,
-                    "SELECT ISNULL(a.nombre, '') "
+                    "SELECT COALESCE(a.nombre, '') "
                     "FROM Pinturas p "
                     "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
                     "WHERE p.id_pintura = ?",
@@ -1078,11 +1077,10 @@ class ExhibicionesVentana(QMainWindow):
                 _exec(
                     cur,
                     "INSERT INTO Exhibicion (nombre, fecha_inicio, fecha_fin, hora_inicio, hora_fin) "
-                    "VALUES (?, ?, ?, ?, ?); SELECT SCOPE_IDENTITY()",
+                    "VALUES (?, ?, ?, ?, ?)",
                     (nombre, fecha_inicio, fecha_fin, hora_inicio, hora_fin),
                 )
-                cur.nextset()
-                new_id = int(cur.fetchone()[0])
+                new_id = cur.lastrowid
 
                 for id_pintura, _titulo, _artista in self._detail_lines:
                     _exec(

@@ -498,9 +498,9 @@ class VentasRepo:
             _exec(
                 cur,
                 "SELECT v.id_venta, "
-                "ISNULL(cl.nombre, '') AS cliente, "
-                "ISNULL(vd.nombre, '') AS vendedor, "
-                "v.fecha, v.total, ISNULL(v.forma_pago, '') AS forma_pago "
+                "COALESCE(cl.nombre, '') AS cliente, "
+                "COALESCE(vd.nombre, '') AS vendedor, "
+                "v.fecha, v.total, COALESCE(v.forma_pago, '') AS forma_pago "
                 "FROM Ventas v "
                 "LEFT JOIN Clientes cl ON v.id_cliente = cl.id_cliente "
                 "LEFT JOIN Vendedores vd ON v.id_vendedor = vd.id_vendedor "
@@ -512,7 +512,7 @@ class VentasRepo:
                 vid = int(r[0])
                 cliente = str(r[1]) if r[1] else ""
                 vendedor = str(r[2]) if r[2] else ""
-                fecha = r[3].strftime("%Y-%m-%d") if r[3] else ""
+                fecha = str(r[3])[:10] if r[3] else ""
                 total = f"{float(r[4]):.2f}" if r[4] is not None else "0.00"
                 forma_pago = str(r[5]).strip().capitalize() if r[5] else ""
                 result.append((vid, cliente, vendedor, fecha, total, forma_pago))
@@ -524,9 +524,9 @@ class VentasRepo:
             _exec(
                 cur,
                 "SELECT v.id_venta, "
-                "ISNULL(cl.nombre, '') AS cliente, "
-                "ISNULL(vd.nombre, '') AS vendedor, "
-                "v.fecha, v.total, v.id_cliente, v.id_vendedor, ISNULL(v.forma_pago, '') AS forma_pago "
+                "COALESCE(cl.nombre, '') AS cliente, "
+                "COALESCE(vd.nombre, '') AS vendedor, "
+                "v.fecha, v.total, v.id_cliente, v.id_vendedor, COALESCE(v.forma_pago, '') AS forma_pago "
                 "FROM Ventas v "
                 "LEFT JOIN Clientes cl ON v.id_cliente = cl.id_cliente "
                 "LEFT JOIN Vendedores vd ON v.id_vendedor = vd.id_vendedor "
@@ -539,7 +539,7 @@ class VentasRepo:
                 vid = int(r[0])
                 cliente = str(r[1]) if r[1] else ""
                 vendedor = str(r[2]) if r[2] else ""
-                fecha = r[3].strftime("%Y-%m-%d") if r[3] else ""
+                fecha = str(r[3])[:10] if r[3] else ""
                 total = f"{float(r[4]):.2f}" if r[4] is not None else "0.00"
                 id_cliente = int(r[5]) if r[5] is not None else 0
                 id_vendedor = int(r[6]) if r[6] is not None else 0
@@ -550,18 +550,18 @@ class VentasRepo:
     def search_by_detail_name(self, texto: str, campo: str) -> List[Tuple[int, str, str, str, str, str]]:
         like = f"%{texto}%"
         if campo == "Artista":
-            where_clause = "ISNULL(a.nombre, '') LIKE ?"
+            where_clause = "COALESCE(a.nombre, '') LIKE ?"
         else:
-            where_clause = "ISNULL(p.titulo, '') LIKE ?"
+            where_clause = "COALESCE(p.titulo, '') LIKE ?"
 
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
                 f"SELECT DISTINCT v.id_venta, "
-                f"ISNULL(cl.nombre, '') AS cliente, "
-                f"ISNULL(vd.nombre, '') AS vendedor, "
-                f"v.fecha, v.total, ISNULL(v.forma_pago, '') AS forma_pago "
+                f"COALESCE(cl.nombre, '') AS cliente, "
+                f"COALESCE(vd.nombre, '') AS vendedor, "
+                f"v.fecha, v.total, COALESCE(v.forma_pago, '') AS forma_pago "
                 f"FROM Ventas v "
                 f"LEFT JOIN Clientes cl ON v.id_cliente = cl.id_cliente "
                 f"LEFT JOIN Vendedores vd ON v.id_vendedor = vd.id_vendedor "
@@ -578,7 +578,7 @@ class VentasRepo:
                 vid = int(r[0])
                 cliente = str(r[1]) if r[1] else ""
                 vendedor = str(r[2]) if r[2] else ""
-                fecha = r[3].strftime("%Y-%m-%d") if r[3] else ""
+                fecha = str(r[3])[:10] if r[3] else ""
                 total = f"{float(r[4]):.2f}" if r[4] is not None else "0.00"
                 forma_pago = str(r[5]).strip().capitalize() if r[5] else ""
                 result.append((vid, cliente, vendedor, fecha, total, forma_pago))
@@ -590,11 +590,10 @@ class VentasRepo:
             _exec(
                 cur,
                 "INSERT INTO Ventas (id_cliente, id_vendedor, fecha, total, forma_pago) "
-                "VALUES (?, ?, ?, ?, ?); SELECT SCOPE_IDENTITY()",
+                "VALUES (?, ?, ?, ?, ?)",
                 (id_cliente, id_vendedor, fecha, total, forma_pago),
             )
-            cur.nextset()
-            new_id = int(cur.fetchone()[0])
+            new_id = cur.lastrowid
             conn.commit()
             return new_id
 
@@ -626,8 +625,8 @@ class DetalleVentaRepo:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT d.id_detalle, ISNULL(p.titulo, '') AS titulo, "
-                "ISNULL(a.nombre, '') AS artista, "
+                "SELECT d.id_detalle, COALESCE(p.titulo, '') AS titulo, "
+                "COALESCE(a.nombre, '') AS artista, "
                 "d.cantidad, d.subtotal, d.id_pintura "
                 "FROM DetalleVenta d "
                 "LEFT JOIN Pinturas p ON d.id_pintura = p.id_pintura "
@@ -659,11 +658,11 @@ class CotizacionesImportRepo:
             _exec(
                 cur,
                 "SELECT c.id_cotizacion, "
-                "ISNULL(cl.nombre, '') AS cliente, "
+                "COALESCE(cl.nombre, '') AS cliente, "
                 "c.fecha, c.total, c.id_cliente, c.id_vendedor "
                 "FROM Cotizaciones c "
                 "LEFT JOIN Clientes cl ON c.id_cliente = cl.id_cliente "
-                "WHERE ISNULL(c.concretada, 0) = 0 "
+                "WHERE COALESCE(c.concretada, 0) = 0 "
                 "ORDER BY c.id_cotizacion",
             )
             rows = cur.fetchall()
@@ -671,7 +670,7 @@ class CotizacionesImportRepo:
             for r in rows:
                 id_cotizacion = int(r[0])
                 cliente = str(r[1]) if r[1] else ""
-                fecha = r[2].strftime("%Y-%m-%d") if r[2] else ""
+                fecha = str(r[2])[:10] if r[2] else ""
                 total = f"{float(r[3]):.2f}" if r[3] is not None else "0.00"
                 id_cliente = int(r[4]) if r[4] is not None else 0
                 id_vendedor = int(r[5]) if r[5] is not None else 0
@@ -694,7 +693,7 @@ class CotizacionesImportRepo:
             _exec(
                 cur,
                 "SELECT c.id_cotizacion, "
-                "ISNULL(cl.nombre, '') AS cliente, "
+                "COALESCE(cl.nombre, '') AS cliente, "
                 "c.fecha, c.total, c.id_cliente "
                 "FROM Cotizaciones c "
                 "LEFT JOIN Clientes cl ON c.id_cliente = cl.id_cliente "
@@ -706,7 +705,7 @@ class CotizacionesImportRepo:
             for r in rows:
                 id_cotizacion = int(r[0])
                 cliente = str(r[1]) if r[1] else ""
-                fecha = r[2].strftime("%Y-%m-%d") if r[2] else ""
+                fecha = str(r[2])[:10] if r[2] else ""
                 total = f"{float(r[3]):.2f}" if r[3] is not None else "0.00"
                 id_cliente = int(r[4]) if r[4] is not None else 0
                 result.append((id_cotizacion, cliente, fecha, total, id_cliente))
@@ -717,8 +716,8 @@ class CotizacionesImportRepo:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT d.id_pintura, ISNULL(p.titulo, '') AS titulo, "
-                "ISNULL(a.nombre, '') AS artista, "
+                "SELECT d.id_pintura, COALESCE(p.titulo, '') AS titulo, "
+                "COALESCE(a.nombre, '') AS artista, "
                 "d.cantidad, d.precio_unitario, d.subtotal "
                 "FROM DetalleCotizacion d "
                 "LEFT JOIN Pinturas p ON d.id_pintura = p.id_pintura "
@@ -752,7 +751,7 @@ class InventarioRepo:
     def get_disponible_cursor(self, cur, id_pintura: int) -> int:
         _exec(
             cur,
-            "SELECT ISNULL(SUM(cantidad), 0) "
+            "SELECT COALESCE(SUM(cantidad), 0) "
             "FROM Inventario "
             "WHERE id_pintura = ?",
             (id_pintura,),
@@ -794,10 +793,11 @@ class InventarioRepo:
     def restaurar_cursor(self, cur, id_pintura: int, cantidad: int) -> None:
         _exec(
             cur,
-            "SELECT TOP 1 id_inventario, cantidad "
+            "SELECT id_inventario, cantidad "
             "FROM Inventario "
             "WHERE id_pintura = ? "
-            "ORDER BY id_inventario",
+            "ORDER BY id_inventario "
+            "LIMIT 1",
             (id_pintura,),
         )
         row = cur.fetchone()
@@ -1381,7 +1381,7 @@ class VentasVentana(QMainWindow):
                     cur,
                     "SELECT COUNT(1) FROM CierreCaja "
                     "WHERE id_vendedor = ? "
-                    "AND CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)",
+                    "AND DATE(fecha) = DATE('now')",
                     (id_vendedor,),
                 )
                 row = cur.fetchone()
@@ -1397,7 +1397,7 @@ class VentasVentana(QMainWindow):
                     cur,
                     "SELECT COUNT(1) FROM AperturaCaja "
                     "WHERE id_vendedor = ? "
-                    "AND CAST(fecha AS DATE) = CAST(GETDATE() AS DATE)",
+                    "AND DATE(fecha) = DATE('now')",
                     (id_vendedor,),
                 )
                 row = cur.fetchone()
@@ -1427,7 +1427,7 @@ class VentasVentana(QMainWindow):
         try:
             with db() as conn:
                 cur = conn.cursor()
-                _exec(cur, "SELECT id_cliente, ISNULL(nombre, '') FROM Clientes ORDER BY nombre")
+                _exec(cur, "SELECT id_cliente, COALESCE(nombre, '') FROM Clientes ORDER BY nombre")
                 rows = cur.fetchall()
                 for r in rows:
                     self.cmbCliente.addItem(str(r[1]), r[0])
@@ -1443,8 +1443,8 @@ class VentasVentana(QMainWindow):
                 cur = conn.cursor()
                 _exec(
                     cur,
-                    "SELECT id_vendedor, ISNULL(nombre, '') "
-                    "FROM Vendedores WHERE ISNULL(activo, 1) = 1 ORDER BY nombre",
+                    "SELECT id_vendedor, COALESCE(nombre, '') "
+                    "FROM Vendedores WHERE COALESCE(activo, 1) = 1 ORDER BY nombre",
                 )
                 rows = cur.fetchall()
                 for r in rows:
@@ -1460,7 +1460,7 @@ class VentasVentana(QMainWindow):
         try:
             with db() as conn:
                 cur = conn.cursor()
-                _exec(cur, "SELECT id_artista, ISNULL(nombre, '') FROM Artistas ORDER BY nombre")
+                _exec(cur, "SELECT id_artista, COALESCE(nombre, '') FROM Artistas ORDER BY nombre")
                 rows = cur.fetchall()
                 for r in rows:
                     self.cmbArtista.addItem(str(r[1]), r[0])
@@ -1478,7 +1478,7 @@ class VentasVentana(QMainWindow):
                 if id_artista is None:
                     _exec(
                         cur,
-                        "SELECT p.id_pintura, ISNULL(p.titulo, ''), ISNULL(a.nombre, ''), ISNULL(p.precio, 0) "
+                        "SELECT p.id_pintura, COALESCE(p.titulo, ''), COALESCE(a.nombre, ''), COALESCE(p.precio, 0) "
                         "FROM Pinturas p "
                         "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
                         "ORDER BY p.titulo",
@@ -1486,7 +1486,7 @@ class VentasVentana(QMainWindow):
                 else:
                     _exec(
                         cur,
-                        "SELECT p.id_pintura, ISNULL(p.titulo, ''), ISNULL(a.nombre, ''), ISNULL(p.precio, 0) "
+                        "SELECT p.id_pintura, COALESCE(p.titulo, ''), COALESCE(a.nombre, ''), COALESCE(p.precio, 0) "
                         "FROM Pinturas p "
                         "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
                         "WHERE p.id_artista = ? "
@@ -1820,11 +1820,10 @@ class VentasVentana(QMainWindow):
                     _exec(
                         cur,
                         "INSERT INTO Ventas (id_cliente, id_vendedor, fecha, total, forma_pago) "
-                        "VALUES (?, ?, ?, ?, ?); SELECT SCOPE_IDENTITY()",
+                        "VALUES (?, ?, ?, ?, ?)",
                         (id_cliente, id_vendedor, fecha, total, forma_pago),
                     )
-                    cur.nextset()
-                    venta_id = int(cur.fetchone()[0])
+                    venta_id = cur.lastrowid
                 else:
                     old_rows = self.detalle_repo.fetch_by_venta(self.current_id)
 

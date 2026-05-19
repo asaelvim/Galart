@@ -26,7 +26,7 @@ jobs:
 
       - name: Build executable with PyInstaller
         run: |
-          pyinstaller --onefile --windowed --name Galart main.py
+          pyinstaller galart.spec
 
       - name: Create GitHub Release and upload .exe
         uses: softprops/action-gh-release@v2

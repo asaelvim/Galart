@@ -476,7 +476,7 @@ class VentanaReporteVentasPeriodo(QMainWindow):
                 FROM Ventas v
                 LEFT JOIN Clientes c ON c.id_cliente = v.id_cliente
                 LEFT JOIN Vendedores ven ON ven.id_vendedor = v.id_vendedor
-                WHERE CAST(v.fecha AS date) BETWEEN ? AND ?
+                WHERE DATE(v.fecha) BETWEEN ? AND ?
                 ORDER BY v.fecha DESC
             """
             cursor.execute(sql, (
@@ -743,7 +743,7 @@ class VentanaReportePinturasPopulares(QMainWindow):
                 JOIN Pinturas p ON p.id_pintura = dv.id_pintura
                 LEFT JOIN Artistas a ON a.id_artista = p.id_artista
                 JOIN Ventas v ON v.id_venta = dv.id_venta
-                WHERE CAST(v.fecha AS date) BETWEEN ? AND ?
+                WHERE DATE(v.fecha) BETWEEN ? AND ?
                 GROUP BY p.titulo, a.nombre, p.precio
                 ORDER BY total_vendidas DESC
             """
@@ -987,10 +987,10 @@ class VentanaReporteInventario(QMainWindow):
             cursor = self.conexion.cursor()
             sql = """
                 SELECT p.id_pintura, p.titulo,
-                       ISNULL(a.nombre, '') AS artista,
-                       ISNULL(t.nombre, '') AS tecnica,
+                       COALESCE(a.nombre, '') AS artista,
+                       COALESCE(t.nombre, '') AS tecnica,
                        p.precio,
-                       ISNULL(i.cantidad, 0) AS stock
+                       COALESCE(i.cantidad, 0) AS stock
                 FROM Pinturas p
                 LEFT JOIN Artistas a ON a.id_artista = p.id_artista
                 LEFT JOIN Tecnicas t ON t.id_tecnica = p.id_tecnica
@@ -1266,11 +1266,11 @@ class VentanaReporteComprasPorProveedor(QMainWindow):
             sql = """
                 SELECT pr.nombre AS proveedor,
                        COUNT(DISTINCT c.id_compra) AS num_compras,
-                       ISNULL(SUM(dc.cantidad * dc.precio), 0) AS total_gastado
+                       COALESCE(SUM(dc.cantidad * dc.precio), 0) AS total_gastado
                 FROM Compras c
                 LEFT JOIN Proveedores pr ON pr.id_proveedor = c.id_proveedor
                 LEFT JOIN DetalleCompra dc ON dc.id_compra = c.id_compra
-                WHERE CAST(c.fecha AS date) BETWEEN ? AND ?
+                WHERE DATE(c.fecha) BETWEEN ? AND ?
                 GROUP BY pr.nombre
                 ORDER BY total_gastado DESC
             """
@@ -1320,12 +1320,12 @@ class VentanaReporteComprasPorProveedor(QMainWindow):
             cursor = self.conexion.cursor()
             sql = """
                 SELECT c.id_compra, c.fecha,
-                       ISNULL(SUM(dc.cantidad * dc.precio), 0) AS total
+                       COALESCE(SUM(dc.cantidad * dc.precio), 0) AS total
                 FROM Compras c
                 LEFT JOIN Proveedores pr ON pr.id_proveedor = c.id_proveedor
                 LEFT JOIN DetalleCompra dc ON dc.id_compra = c.id_compra
                 WHERE pr.nombre = ?
-                  AND CAST(c.fecha AS date) BETWEEN ? AND ?
+                  AND DATE(c.fecha) BETWEEN ? AND ?
                 GROUP BY c.id_compra, c.fecha
                 ORDER BY c.fecha DESC
             """
@@ -1582,7 +1582,7 @@ class VentanaReporteVentasPorCliente(QMainWindow):
                        SUM(v.total) AS total_comprado
                 FROM Ventas v
                 LEFT JOIN Clientes c ON c.id_cliente = v.id_cliente
-                WHERE CAST(v.fecha AS date) BETWEEN ? AND ?
+                WHERE DATE(v.fecha) BETWEEN ? AND ?
                 GROUP BY c.nombre
                 ORDER BY total_comprado DESC
             """
@@ -1635,7 +1635,7 @@ class VentanaReporteVentasPorCliente(QMainWindow):
                 FROM Ventas v
                 LEFT JOIN Clientes c ON c.id_cliente = v.id_cliente
                 WHERE c.nombre = ?
-                  AND CAST(v.fecha AS date) BETWEEN ? AND ?
+                  AND DATE(v.fecha) BETWEEN ? AND ?
                 ORDER BY v.fecha DESC
             """
             cursor.execute(sql, (
@@ -1860,12 +1860,12 @@ class VentanaReporteVentasPorMes(QMainWindow):
         try:
             cursor = self.conexion.cursor()
             sql = """
-                SELECT MONTH(fecha) AS mes,
+                SELECT CAST(strftime('%m', fecha) AS INTEGER) AS mes,
                        COUNT(*) AS num_ventas,
                        SUM(total) AS total
                 FROM Ventas
-                WHERE YEAR(fecha) = ?
-                GROUP BY MONTH(fecha)
+                WHERE strftime('%Y', fecha) = CAST(? AS TEXT)
+                GROUP BY strftime('%m', fecha)
                 ORDER BY mes
             """
             cursor.execute(sql, (self.spin_anio.value(),))
@@ -2153,7 +2153,7 @@ class VentanaReporteFacturas(QMainWindow):
                 FROM Ventas v
                 LEFT JOIN Clientes c ON c.id_cliente = v.id_cliente
                 LEFT JOIN Vendedores ven ON ven.id_vendedor = v.id_vendedor
-                WHERE CAST(v.fecha AS date) BETWEEN ? AND ?
+                WHERE DATE(v.fecha) BETWEEN ? AND ?
                 ORDER BY v.fecha DESC, v.id_venta DESC
             """
             cursor.execute(sql, (
