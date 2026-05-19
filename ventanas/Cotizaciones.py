@@ -70,8 +70,8 @@ class CotizacionesRepo:
             _exec(
                 cur,
                 "SELECT c.id_cotizacion, "
-                "ISNULL(cl.nombre, '') AS cliente, "
-                "ISNULL(v.nombre, '') AS vendedor, "
+                "COALESCE(cl.nombre, '') AS cliente, "
+                "COALESCE(v.nombre, '') AS vendedor, "
                 "c.fecha, c.subtotal, c.iva, c.total "
                 "FROM Cotizaciones c "
                 "LEFT JOIN Clientes cl ON c.id_cliente = cl.id_cliente "
@@ -84,7 +84,7 @@ class CotizacionesRepo:
                 cid = int(r[0])
                 cliente = str(r[1]) if r[1] else ""
                 vendedor = str(r[2]) if r[2] else ""
-                fecha = r[3].strftime("%Y-%m-%d") if r[3] else ""
+                fecha = str(r[3])[:10] if r[3] else ""
                 subtotal = f"{float(r[4]):.2f}" if r[4] is not None else "0.00"
                 iva = f"{float(r[5]):.2f}" if r[5] is not None else "0.00"
                 total = f"{float(r[6]):.2f}" if r[6] is not None else "0.00"
@@ -97,8 +97,8 @@ class CotizacionesRepo:
             _exec(
                 cur,
                 "SELECT c.id_cotizacion, "
-                "ISNULL(cl.nombre, '') AS cliente, "
-                "ISNULL(v.nombre, '') AS vendedor, "
+                "COALESCE(cl.nombre, '') AS cliente, "
+                "COALESCE(v.nombre, '') AS vendedor, "
                 "c.fecha, c.subtotal, c.iva, c.total, "
                 "c.id_cliente, c.id_vendedor "
                 "FROM Cotizaciones c "
@@ -113,7 +113,7 @@ class CotizacionesRepo:
                 cid = int(r[0])
                 cliente = str(r[1]) if r[1] else ""
                 vendedor = str(r[2]) if r[2] else ""
-                fecha = r[3].strftime("%Y-%m-%d") if r[3] else ""
+                fecha = str(r[3])[:10] if r[3] else ""
                 subtotal = f"{float(r[4]):.2f}" if r[4] is not None else "0.00"
                 iva = f"{float(r[5]):.2f}" if r[5] is not None else "0.00"
                 total = f"{float(r[6]):.2f}" if r[6] is not None else "0.00"
@@ -125,17 +125,17 @@ class CotizacionesRepo:
     def search_by_detail_name(self, texto: str, campo: str) -> List[Tuple[int, str, str, str, str, str, str]]:
         like = f"%{texto}%"
         if campo == "Artista":
-            where_clause = "ISNULL(a.nombre, '') LIKE ?"
+            where_clause = "COALESCE(a.nombre, '') LIKE ?"
         else:
-            where_clause = "ISNULL(p.titulo, '') LIKE ?"
+            where_clause = "COALESCE(p.titulo, '') LIKE ?"
 
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
                 f"SELECT DISTINCT c.id_cotizacion, "
-                f"ISNULL(cl.nombre, '') AS cliente, "
-                f"ISNULL(v.nombre, '') AS vendedor, "
+                f"COALESCE(cl.nombre, '') AS cliente, "
+                f"COALESCE(v.nombre, '') AS vendedor, "
                 f"c.fecha, c.subtotal, c.iva, c.total "
                 f"FROM Cotizaciones c "
                 f"LEFT JOIN Clientes cl ON c.id_cliente = cl.id_cliente "
@@ -153,7 +153,7 @@ class CotizacionesRepo:
                 cid = int(r[0])
                 cliente = str(r[1]) if r[1] else ""
                 vendedor = str(r[2]) if r[2] else ""
-                fecha = r[3].strftime("%Y-%m-%d") if r[3] else ""
+                fecha = str(r[3])[:10] if r[3] else ""
                 subtotal = f"{float(r[4]):.2f}" if r[4] is not None else "0.00"
                 iva = f"{float(r[5]):.2f}" if r[5] is not None else "0.00"
                 total = f"{float(r[6]):.2f}" if r[6] is not None else "0.00"
@@ -167,11 +167,10 @@ class CotizacionesRepo:
             _exec(
                 cur,
                 "INSERT INTO Cotizaciones (id_cliente, id_vendedor, fecha, subtotal, iva, total) "
-                "VALUES (?, ?, ?, ?, ?, ?); SELECT SCOPE_IDENTITY()",
+                "VALUES (?, ?, ?, ?, ?, ?)",
                 (id_cliente, id_vendedor, fecha, subtotal, iva, total),
             )
-            cur.nextset()
-            new_id = int(cur.fetchone()[0])
+            new_id = cur.lastrowid
             conn.commit()
             return new_id
 
@@ -202,8 +201,8 @@ class DetalleCotizacionRepo:
             _exec(
                 cur,
                 "SELECT d.id_detalle, "
-                "ISNULL(p.titulo, '') AS titulo, "
-                "ISNULL(a.nombre, '') AS artista, "
+                "COALESCE(p.titulo, '') AS titulo, "
+                "COALESCE(a.nombre, '') AS artista, "
                 "d.cantidad, d.precio_unitario, d.subtotal, d.id_pintura "
                 "FROM DetalleCotizacion d "
                 "LEFT JOIN Pinturas p ON d.id_pintura = p.id_pintura "
@@ -232,7 +231,7 @@ class InventarioRepo:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT ISNULL(SUM(cantidad), 0) FROM Inventario WHERE id_pintura = ?",
+                "SELECT COALESCE(SUM(cantidad), 0) FROM Inventario WHERE id_pintura = ?",
                 (id_pintura,),
             )
             row = cur.fetchone()
@@ -243,7 +242,7 @@ class ArtistasRepo:
     def fetch_all_for_combo(self) -> List[Tuple[int, str]]:
         with db() as conn:
             cur = conn.cursor()
-            _exec(cur, "SELECT id_artista, ISNULL(nombre, '') FROM Artistas ORDER BY nombre")
+            _exec(cur, "SELECT id_artista, COALESCE(nombre, '') FROM Artistas ORDER BY nombre")
             rows = cur.fetchall()
             return [(int(r[0]), str(r[1]) if r[1] is not None else "") for r in rows]
 
@@ -255,8 +254,8 @@ class PinturasRepo:
             if id_artista is None:
                 _exec(
                     cur,
-                    "SELECT p.id_pintura, ISNULL(p.titulo, '') AS titulo, "
-                    "ISNULL(a.nombre, '') AS artista, ISNULL(p.precio, 0) AS precio "
+                    "SELECT p.id_pintura, COALESCE(p.titulo, '') AS titulo, "
+                    "COALESCE(a.nombre, '') AS artista, COALESCE(p.precio, 0) AS precio "
                     "FROM Pinturas p "
                     "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
                     "ORDER BY p.titulo",
@@ -264,8 +263,8 @@ class PinturasRepo:
             else:
                 _exec(
                     cur,
-                    "SELECT p.id_pintura, ISNULL(p.titulo, '') AS titulo, "
-                    "ISNULL(a.nombre, '') AS artista, ISNULL(p.precio, 0) AS precio "
+                    "SELECT p.id_pintura, COALESCE(p.titulo, '') AS titulo, "
+                    "COALESCE(a.nombre, '') AS artista, COALESCE(p.precio, 0) AS precio "
                     "FROM Pinturas p "
                     "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
                     "WHERE p.id_artista = ? "
@@ -795,7 +794,7 @@ class CotizacionesVentana(QMainWindow):
         try:
             with db() as conn:
                 cur = conn.cursor()
-                _exec(cur, "SELECT id_cliente, ISNULL(nombre, '') FROM Clientes ORDER BY nombre")
+                _exec(cur, "SELECT id_cliente, COALESCE(nombre, '') FROM Clientes ORDER BY nombre")
                 rows = cur.fetchall()
                 for r in rows:
                     self.cmbCliente.addItem(str(r[1]), r[0])
@@ -811,8 +810,8 @@ class CotizacionesVentana(QMainWindow):
                 cur = conn.cursor()
                 _exec(
                     cur,
-                    "SELECT id_vendedor, ISNULL(nombre, '') "
-                    "FROM Vendedores WHERE ISNULL(activo, 1) = 1 ORDER BY nombre",
+                    "SELECT id_vendedor, COALESCE(nombre, '') "
+                    "FROM Vendedores WHERE COALESCE(activo, 1) = 1 ORDER BY nombre",
                 )
                 rows = cur.fetchall()
                 for r in rows:
@@ -1073,11 +1072,10 @@ class CotizacionesVentana(QMainWindow):
                     _exec(
                         cur,
                         "INSERT INTO Cotizaciones (id_cliente, id_vendedor, fecha, subtotal, iva, total, concretada) "
-                        "VALUES (?, ?, ?, ?, ?, ?, 0); SELECT SCOPE_IDENTITY()",
+                        "VALUES (?, ?, ?, ?, ?, ?, 0)",
                         (id_cliente, id_vendedor, fecha, subtotal, iva, total),
                     )
-                    cur.nextset()
-                    cotizacion_id = int(cur.fetchone()[0])
+                    cotizacion_id = cur.lastrowid
                 else:
                     _exec(
                         cur,

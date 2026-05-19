@@ -69,7 +69,7 @@ class ComprasRepo:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT c.id_compra, ISNULL(p.nombre, '') AS proveedor, c.fecha "
+                "SELECT c.id_compra, COALESCE(p.nombre, '') AS proveedor, c.fecha "
                 "FROM Compras c "
                 "LEFT JOIN Proveedores p ON c.id_proveedor = p.id_proveedor "
                 "ORDER BY c.id_compra",
@@ -79,7 +79,7 @@ class ComprasRepo:
             for r in rows:
                 cid = int(r[0])
                 proveedor = str(r[1]) if r[1] else ""
-                fecha = r[2].strftime("%Y-%m-%d") if r[2] else ""
+                fecha = str(r[2])[:10] if r[2] else ""
                 result.append((cid, proveedor, fecha))
             return result
 
@@ -88,7 +88,7 @@ class ComprasRepo:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT c.id_compra, ISNULL(p.nombre, '') AS proveedor, c.fecha, c.id_proveedor "
+                "SELECT c.id_compra, COALESCE(p.nombre, '') AS proveedor, c.fecha, c.id_proveedor "
                 "FROM Compras c "
                 "LEFT JOIN Proveedores p ON c.id_proveedor = p.id_proveedor "
                 "WHERE c.id_compra = ?",
@@ -99,7 +99,7 @@ class ComprasRepo:
             for r in rows:
                 cid = int(r[0])
                 proveedor = str(r[1]) if r[1] else ""
-                fecha = r[2].strftime("%Y-%m-%d") if r[2] else ""
+                fecha = str(r[2])[:10] if r[2] else ""
                 id_proveedor = int(r[3]) if r[3] is not None else 0
                 result.append((cid, proveedor, fecha, id_proveedor))
             return result
@@ -110,10 +110,10 @@ class ComprasRepo:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT c.id_compra, ISNULL(p.nombre, '') AS proveedor, c.fecha "
+                "SELECT c.id_compra, COALESCE(p.nombre, '') AS proveedor, c.fecha "
                 "FROM Compras c "
                 "LEFT JOIN Proveedores p ON c.id_proveedor = p.id_proveedor "
-                "WHERE ISNULL(p.nombre, '') LIKE ? "
+                "WHERE COALESCE(p.nombre, '') LIKE ? "
                 "ORDER BY c.id_compra",
                 (like,),
             )
@@ -122,22 +122,22 @@ class ComprasRepo:
             for r in rows:
                 cid = int(r[0])
                 proveedor = str(r[1]) if r[1] else ""
-                fecha = r[2].strftime("%Y-%m-%d") if r[2] else ""
+                fecha = str(r[2])[:10] if r[2] else ""
                 result.append((cid, proveedor, fecha))
             return result
 
     def search_by_detail_name(self, texto: str, campo: str) -> List[Tuple[int, str, str]]:
         like = f"%{texto}%"
         if campo == "Artista":
-            where_clause = "ISNULL(a.nombre, '') LIKE ?"
+            where_clause = "COALESCE(a.nombre, '') LIKE ?"
         else:
-            where_clause = "ISNULL(pn.titulo, '') LIKE ?"
+            where_clause = "COALESCE(pn.titulo, '') LIKE ?"
 
         with db() as conn:
             cur = conn.cursor()
             _exec(
                 cur,
-                f"SELECT DISTINCT c.id_compra, ISNULL(pr.nombre, '') AS proveedor, c.fecha "
+                f"SELECT DISTINCT c.id_compra, COALESCE(pr.nombre, '') AS proveedor, c.fecha "
                 f"FROM Compras c "
                 f"LEFT JOIN Proveedores pr ON c.id_proveedor = pr.id_proveedor "
                 f"INNER JOIN DetalleCompra d ON c.id_compra = d.id_compra "
@@ -152,7 +152,7 @@ class ComprasRepo:
             for r in rows:
                 cid = int(r[0])
                 proveedor = str(r[1]) if r[1] else ""
-                fecha = r[2].strftime("%Y-%m-%d") if r[2] else ""
+                fecha = str(r[2])[:10] if r[2] else ""
                 result.append((cid, proveedor, fecha))
             return result
 
@@ -162,11 +162,10 @@ class ComprasRepo:
             _exec(
                 cur,
                 "INSERT INTO Compras (id_proveedor, fecha) "
-                "VALUES (?, ?); SELECT SCOPE_IDENTITY()",
+                "VALUES (?, ?)",
                 (id_proveedor, fecha),
             )
-            cur.nextset()
-            new_id = int(cur.fetchone()[0])
+            new_id = cur.lastrowid
             conn.commit()
             return new_id
 
@@ -194,8 +193,8 @@ class DetalleCompraRepo:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT d.id_detalle, ISNULL(p.titulo, '') AS titulo, "
-                "ISNULL(a.nombre, '') AS artista, "
+                "SELECT d.id_detalle, COALESCE(p.titulo, '') AS titulo, "
+                "COALESCE(a.nombre, '') AS artista, "
                 "d.cantidad, d.precio, d.id_pintura "
                 "FROM DetalleCompra d "
                 "LEFT JOIN Pinturas p ON d.id_pintura = p.id_pintura "
@@ -221,7 +220,7 @@ class ProveedoresRepo:
     def fetch_all_for_combo(self) -> List[Tuple[int, str]]:
         with db() as conn:
             cur = conn.cursor()
-            _exec(cur, "SELECT id_proveedor, ISNULL(nombre, '') FROM Proveedores ORDER BY nombre")
+            _exec(cur, "SELECT id_proveedor, COALESCE(nombre, '') FROM Proveedores ORDER BY nombre")
             rows = cur.fetchall()
             return [(int(r[0]), str(r[1]) if r[1] is not None else "") for r in rows]
 
@@ -230,7 +229,7 @@ class ArtistasRepo:
     def fetch_all_for_combo(self) -> List[Tuple[int, str]]:
         with db() as conn:
             cur = conn.cursor()
-            _exec(cur, "SELECT id_artista, ISNULL(nombre, '') FROM Artistas ORDER BY nombre")
+            _exec(cur, "SELECT id_artista, COALESCE(nombre, '') FROM Artistas ORDER BY nombre")
             rows = cur.fetchall()
             return [(int(r[0]), str(r[1]) if r[1] is not None else "") for r in rows]
 
@@ -241,7 +240,7 @@ class PinturasRepo:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT p.id_pintura, ISNULL(p.titulo, ''), ISNULL(a.nombre, ''), ISNULL(p.precio, 0) "
+                "SELECT p.id_pintura, COALESCE(p.titulo, ''), COALESCE(a.nombre, ''), COALESCE(p.precio, 0) "
                 "FROM Pinturas p "
                 "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
                 "ORDER BY p.titulo",
@@ -264,7 +263,7 @@ class PinturasRepo:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT p.id_pintura, ISNULL(p.titulo, ''), ISNULL(a.nombre, ''), ISNULL(p.precio, 0) "
+                "SELECT p.id_pintura, COALESCE(p.titulo, ''), COALESCE(a.nombre, ''), COALESCE(p.precio, 0) "
                 "FROM Pinturas p "
                 "LEFT JOIN Artistas a ON p.id_artista = a.id_artista "
                 "WHERE p.id_artista = ? "
@@ -291,7 +290,7 @@ class InventarioRepo:
             cur = conn.cursor()
             _exec(
                 cur,
-                "SELECT ISNULL(SUM(cantidad), 0) FROM Inventario WHERE id_pintura = ?",
+                "SELECT COALESCE(SUM(cantidad), 0) FROM Inventario WHERE id_pintura = ?",
                 (id_pintura,),
             )
             row = cur.fetchone()
@@ -300,7 +299,7 @@ class InventarioRepo:
     def get_disponible_cursor(self, cur, id_pintura: int) -> int:
         _exec(
             cur,
-            "SELECT ISNULL(SUM(cantidad), 0) FROM Inventario WHERE id_pintura = ?",
+            "SELECT COALESCE(SUM(cantidad), 0) FROM Inventario WHERE id_pintura = ?",
             (id_pintura,),
         )
         row = cur.fetchone()
@@ -1008,11 +1007,10 @@ class ComprasVentana(QMainWindow):
                 if self.current_id is None:
                     _exec(
                         cur,
-                        "INSERT INTO Compras (id_proveedor, fecha) VALUES (?, ?); SELECT SCOPE_IDENTITY()",
+                        "INSERT INTO Compras (id_proveedor, fecha) VALUES (?, ?)",
                         (id_proveedor, fecha),
                     )
-                    cur.nextset()
-                    compra_id = int(cur.fetchone()[0])
+                    compra_id = cur.lastrowid
 
                 else:
                     old_rows = self.detalle_repo.fetch_by_compra(self.current_id)
