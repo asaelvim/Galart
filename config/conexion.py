@@ -19,14 +19,12 @@ def _get_db_path() -> str:
 class _Row:
     """Row wrapper that supports both index-based and attribute-based access."""
 
-    __slots__ = ("_data", "_fields")
-
     def __init__(self, cursor, row):
-        object.__setattr__(self, "_data", row)
+        self.__dict__["_data"] = row
         fields = [d[0] for d in cursor.description]
-        object.__setattr__(self, "_fields", fields)
+        self.__dict__["_fields"] = fields
         for k, v in zip(fields, row):
-            object.__setattr__(self, k, v)
+            self.__dict__[k] = v
 
     def __getitem__(self, idx):
         return self._data[idx]
